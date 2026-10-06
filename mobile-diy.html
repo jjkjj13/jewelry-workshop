@@ -431,6 +431,9 @@
     text-align: center;
     cursor: pointer;
     border: 1px solid transparent;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
   }
   .card:active { border-color: var(--accent); }
   .card-del {
@@ -740,6 +743,18 @@
     </div>
   </div>
 
+  <!-- 重命名素材弹窗 -->
+  <div class="modal" id="renameModal">
+    <div class="modal-box">
+      <div class="modal-title">重命名素材</div>
+      <div class="modal-desc" id="renameHint"></div>
+      <input type="text" class="ai-input" id="renameInput" maxlength="20" style="min-height:auto;margin-top:10px" placeholder="输入新名称" />
+      <button class="modal-close" id="renameSave" style="margin-top:12px">保存</button>
+      <button class="ai-run" id="renameReset" style="width:100%;margin-top:8px">恢复默认名称</button>
+      <button class="ai-run" id="renameCancel" style="width:100%;margin-top:6px">取消</button>
+    </div>
+  </div>
+
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/OrbitControls.js';
@@ -854,6 +869,7 @@ const CATALOG = {
 
 const CUSTOM_KEY = 'jewelry_diy_custom_elements';
 const HIDDEN_KEY = 'jewelry_diy_hidden_elements'; // 被删除的自带元素 id 列表
+const RENAME_KEY = 'jewelry_diy_renames'; // 元素自定义名称映射 {id: newName}
 
 /* =====================================================
    3D 核心对象
@@ -1861,6 +1877,104 @@ function restoreHidden() {
 }
 
 /* =====================================================
+   元素自定义命名（长按素材卡片触发）
+===================================================== */
+const DEFAULT_NAMES = {}; // id → 原始名称（在应用自定义名称前收集）
+
+// 记录全部元素的原始名称
+function collectDefaultNames() {
+  for (const t of Object.keys(CATALOG)) {
+    for (const cat of CATALOG[t].categories) {
+      for (const it of cat.items) {
+        if (!(it.id in DEFAULT_NAMES)) DEFAULT_NAMES[it.id] = it.name;
+      }
+    }
+  }
+}
+
+// 启动时应用持久化的自定义名称
+function bootRenames() {
+  collectDefaultNames();
+  let map;
+  try { map = JSON.parse(localStorage.getItem(RENAME_KEY) || '{}'); } catch (e) { map = {}; }
+  for (const t of Object.keys(CATALOG)) {
+    for (const cat of CATALOG[t].categories) {
+      for (const it of cat.items) {
+        if (typeof map[it.id] === 'string' && map[it.id].trim()) {
+          it.name = map[it.id].trim().slice(0, 20);
+        }
+      }
+    }
+  }
+}
+
+// 按 id 查找 CATALOG 元素
+function findCatalogItem(id) {
+  for (const t of Object.keys(CATALOG)) {
+    for (const cat of CATALOG[t].categories) {
+      const it = cat.items.find(x => x.id === id);
+      if (it) return it;
+    }
+  }
+  return null;
+}
+
+let renameTargetId = null;
+const renameModal = document.getElementById('renameModal');
+
+function openRenameModal(id) {
+  const item = findCatalogItem(id);
+  if (!item) return;
+  renameTargetId = id;
+  document.getElementById('renameHint').textContent =
+    '原名称：' + (DEFAULT_NAMES[id] || item.name);
+  const input = document.getElementById('renameInput');
+  input.value = item.name;
+  renameModal.classList.add('show');
+  setTimeout(() => { input.focus(); input.select(); }, 60);
+}
+
+function closeRenameModal() {
+  renameModal.classList.remove('show');
+  renameTargetId = null;
+}
+
+function readRenameMap() {
+  try { return JSON.parse(localStorage.getItem(RENAME_KEY) || '{}'); }
+  catch (e) { return {}; }
+}
+
+function saveRename() {
+  if (!renameTargetId) return;
+  const v = document.getElementById('renameInput').value.trim().slice(0, 20);
+  if (!v) { showToast('名称不能为空'); return; }
+  const item = findCatalogItem(renameTargetId);
+  if (!item) return;
+  item.name = v;
+  const map = readRenameMap();
+  // 与默认名相同则清除映射，否则持久化
+  if (DEFAULT_NAMES[renameTargetId] === v) delete map[renameTargetId];
+  else map[renameTargetId] = v;
+  localStorage.setItem(RENAME_KEY, JSON.stringify(map));
+  renderGrid();
+  closeRenameModal();
+  showToast('已重命名为「' + v + '」');
+}
+
+function resetRename() {
+  if (!renameTargetId) return;
+  const item = findCatalogItem(renameTargetId);
+  if (!item) return;
+  const map = readRenameMap();
+  delete map[renameTargetId];
+  localStorage.setItem(RENAME_KEY, JSON.stringify(map));
+  if (DEFAULT_NAMES[renameTargetId]) item.name = DEFAULT_NAMES[renameTargetId];
+  renderGrid();
+  closeRenameModal();
+  showToast('已恢复默认名称');
+}
+
+/* =====================================================
    视图工具：顶视图 / 顶点吸附 / 贴底座 / 碰撞检测
 ===================================================== */
 let viewMode = 0;          // 0=默认 1=顶视 2=仰视（看底座底面）
@@ -2371,6 +2485,14 @@ document.getElementById('btnAi').addEventListener('click', () => {
   aiModal.classList.add('show');
 });
 document.getElementById('aiClose').addEventListener('click', () => aiModal.classList.remove('show'));
+// 重命名弹窗
+document.getElementById('renameSave').addEventListener('click', saveRename);
+document.getElementById('renameReset').addEventListener('click', resetRename);
+document.getElementById('renameCancel').addEventListener('click', closeRenameModal);
+renameModal.addEventListener('click', e => { if (e.target === renameModal) closeRenameModal(); });
+document.getElementById('renameInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); saveRename(); }
+});
 aiModal.addEventListener('click', e => { if (e.target === aiModal) aiModal.classList.remove('show'); });
 
 // ===== 预置材质库（启动时预生成 6 张纹理，应用时直接取用，无网络/无动态渲染） =====
@@ -2733,7 +2855,9 @@ catCol.addEventListener('click', e => {
 });
 
 // 素材卡片
+let suppressClickUntil = 0; // 长按触发后短暂抑制 click，防止误添加
 grid.addEventListener('click', e => {
+  if (performance.now() < suppressClickUntil) return;
   const del = e.target.closest('.card-del');
   if (del) { deleteElement(del.dataset.del); return; }
   const card = e.target.closest('.card');
@@ -2744,6 +2868,33 @@ grid.addEventListener('click', e => {
     if (item) { addItemObject(item); break; }
   }
 });
+
+// 长按素材卡片（500ms）→ 重命名；手指移动超过 10px 取消
+let pressTimer = null, pressStart = null;
+grid.addEventListener('pointerdown', e => {
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  if (e.target.closest('.card-del')) return;
+  const card = e.target.closest('.card');
+  if (!card) return;
+  pressStart = { x: e.clientX, y: e.clientY, id: card.dataset.id };
+  pressTimer = setTimeout(() => {
+    pressTimer = null;
+    suppressClickUntil = performance.now() + 600;
+    if (navigator.vibrate) navigator.vibrate(30);
+    openRenameModal(pressStart.id);
+  }, 500);
+});
+grid.addEventListener('pointermove', e => {
+  if (!pressTimer || !pressStart) return;
+  if (Math.abs(e.clientX - pressStart.x) > 10 || Math.abs(e.clientY - pressStart.y) > 10) {
+    clearTimeout(pressTimer); pressTimer = null;
+  }
+});
+['pointerup', 'pointercancel', 'pointerleave'].forEach(ev =>
+  grid.addEventListener(ev, () => {
+    if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+  })
+);
 
 // 图层面板（事件委托）
 layerList.addEventListener('click', e => {
@@ -2969,6 +3120,7 @@ function resizeView() {
 // ---- 启动 ----
 bootCustom();
 bootHidden();  // 过滤被删除的自带元素
+bootRenames(); // 应用自定义元素名称
 bootTabOrder(); // 应用自定义 tab 顺序
 initThree();
 renderPanel();
