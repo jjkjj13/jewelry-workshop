@@ -2744,6 +2744,11 @@ document.getElementById('textureImport').addEventListener('change', e => {
 // 键盘快捷键（桌面预览）：Ctrl+Z 撤销 / Ctrl+Y 重做 / Ctrl+D 复制 / Delete 删除
 // W/E/R 切换 移动/旋转/拉伸 模式
 window.addEventListener('keydown', e => {
+  // 焦点在可编辑元素（重命名输入框等）时，所有按键原样放行，不拦截退格/删除/快捷键
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) {
+    return;
+  }
   const key = e.key.toLowerCase();
   if ((e.ctrlKey || e.metaKey) && key === 'z') {
     e.preventDefault();
