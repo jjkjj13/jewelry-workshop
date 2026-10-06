@@ -2857,7 +2857,8 @@ catCol.addEventListener('click', e => {
 // 素材卡片
 let suppressClickUntil = 0; // 长按触发后短暂抑制 click，防止误添加
 grid.addEventListener('click', e => {
-  if (performance.now() < suppressClickUntil) return;
+  // 长按已触发：松手产生的 click 一律吞掉（按住再久也不会误添加元素）
+  if (longPressFired || performance.now() < suppressClickUntil) return;
   const del = e.target.closest('.card-del');
   if (del) { deleteElement(del.dataset.del); return; }
   const card = e.target.closest('.card');
@@ -2869,32 +2870,66 @@ grid.addEventListener('click', e => {
   }
 });
 
-// 长按素材卡片（500ms）→ 重命名；手指移动超过 10px 取消
-let pressTimer = null, pressStart = null;
-grid.addEventListener('pointerdown', e => {
-  if (e.pointerType === 'mouse' && e.button !== 0) return;
+// 长按素材卡片（500ms）→ 重命名；移动超过 10px 取消
+// 注意：必须用 TouchEvent 而非 PointerEvent——grid 上 touch-action: pan-y，
+// 浏览器判定滚动时会发 pointercancel 导致长按被取消；touchmove 则会继续触发。
+let pressTimer = null, pressStart = null, longPressFired = false;
+const PRESS_MS = 500, MOVE_TOLERANCE = 10;
+
+function armPress(id, x, y) {
+  pressStart = { x, y, id };
+  longPressFired = false;
+  pressTimer = setTimeout(() => {
+    pressTimer = null;
+    longPressFired = true;
+    suppressClickUntil = performance.now() + 700;
+    if (navigator.vibrate) navigator.vibrate(30);
+    openRenameModal(pressStart.id);
+  }, PRESS_MS);
+}
+function cancelPress() {
+  if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+}
+function movedTooFar(x, y) {
+  return pressStart && (Math.abs(x - pressStart.x) > MOVE_TOLERANCE || Math.abs(y - pressStart.y) > MOVE_TOLERANCE);
+}
+
+// ---- 移动端：TouchEvent（页面可正常滚动，仅真滑动超阈值才取消长按） ----
+grid.addEventListener('touchstart', e => {
+  if (e.target.closest('.card-del')) return;
+  const card = e.target.closest('.card');
+  if (!card || e.touches.length !== 1) return;
+  const t = e.touches[0];
+  armPress(card.dataset.id, t.clientX, t.clientY);
+}, { passive: true });
+
+grid.addEventListener('touchmove', e => {
+  if (!pressTimer) return;
+  const t = e.touches[0];
+  if (t && movedTooFar(t.clientX, t.clientY)) cancelPress();
+}, { passive: true });
+
+['touchend', 'touchcancel'].forEach(ev =>
+  grid.addEventListener(ev, cancelPress, { passive: true })
+);
+
+// ---- 桌面端：鼠标长按（无滚动冲突） ----
+grid.addEventListener('mousedown', e => {
+  if (e.button !== 0) return;
   if (e.target.closest('.card-del')) return;
   const card = e.target.closest('.card');
   if (!card) return;
-  pressStart = { x: e.clientX, y: e.clientY, id: card.dataset.id };
-  pressTimer = setTimeout(() => {
-    pressTimer = null;
-    suppressClickUntil = performance.now() + 600;
-    if (navigator.vibrate) navigator.vibrate(30);
-    openRenameModal(pressStart.id);
-  }, 500);
+  armPress(card.dataset.id, e.clientX, e.clientY);
 });
-grid.addEventListener('pointermove', e => {
-  if (!pressTimer || !pressStart) return;
-  if (Math.abs(e.clientX - pressStart.x) > 10 || Math.abs(e.clientY - pressStart.y) > 10) {
-    clearTimeout(pressTimer); pressTimer = null;
-  }
+grid.addEventListener('mousemove', e => {
+  if (pressTimer && movedTooFar(e.clientX, e.clientY)) cancelPress();
 });
-['pointerup', 'pointercancel', 'pointerleave'].forEach(ev =>
-  grid.addEventListener(ev, () => {
-    if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
-  })
-);
+['mouseup', 'mouseleave'].forEach(ev => grid.addEventListener(ev, cancelPress));
+
+// 阻止移动端长按弹出原生上下文菜单（卡片无需系统菜单）
+grid.addEventListener('contextmenu', e => {
+  if (e.target.closest('.card')) e.preventDefault();
+});
 
 // 图层面板（事件委托）
 layerList.addEventListener('click', e => {
