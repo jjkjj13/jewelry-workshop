@@ -372,6 +372,28 @@
   }
   .tabs-edit-mode .tab-edit-btn { display: inline-flex; }
   .tabs-edit-mode .tab { padding-right: 24px; }
+  .tab-rename-btn {
+    flex: 0 0 auto;
+    height: 28px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--pill);
+    color: var(--accent);
+    font-size: 12px;
+    cursor: pointer;
+    padding: 0 10px;
+    margin-left: 4px;
+    white-space: nowrap;
+  }
+  .tab-rename-btn.on {
+    background: var(--accent);
+    color: #16161a;
+    font-weight: 600;
+  }
+  /* 改名模式：卡片金色虚框提示可点选改名 */
+  .grid.rename-mode .card { border-color: rgba(201,169,97,0.55); }
+  .grid.rename-mode .card:active { border-color: var(--accent); }
+
   .tab-edit-fab {
     flex: 0 0 auto;
     width: 28px;
@@ -697,6 +719,7 @@
         <button class="tab" data-tab="acc">配饰</button>
         <button class="tab" data-tab="custom">自定义</button>
         <button class="tab" data-tab="layers">图层</button>
+        <button class="tab-rename-btn" id="tabRenameFab" title="重命名素材">✏ 改名</button>
         <button class="tab-edit-fab" id="tabEditFab" title="编辑顺序">✎</button>
       </div>
       <div class="sheet-body">
@@ -1958,7 +1981,7 @@ function saveRename() {
   localStorage.setItem(RENAME_KEY, JSON.stringify(map));
   renderGrid();
   closeRenameModal();
-  showToast('已重命名为「' + v + '」');
+  showToast('已重命名为「' + v + '」，可继续点选改名');
 }
 
 function resetRename() {
@@ -1971,7 +1994,7 @@ function resetRename() {
   if (DEFAULT_NAMES[renameTargetId]) item.name = DEFAULT_NAMES[renameTargetId];
   renderGrid();
   closeRenameModal();
-  showToast('已恢复默认名称');
+  showToast('已恢复默认名称，可继续点选改名');
 }
 
 /* =====================================================
@@ -2855,14 +2878,13 @@ catCol.addEventListener('click', e => {
 });
 
 // 素材卡片
-let suppressClickUntil = 0; // 长按触发后短暂抑制 click，防止误添加
 grid.addEventListener('click', e => {
-  // 长按已触发：松手产生的 click 一律吞掉（按住再久也不会误添加元素）
-  if (longPressFired || performance.now() < suppressClickUntil) return;
   const del = e.target.closest('.card-del');
   if (del) { deleteElement(del.dataset.del); return; }
   const card = e.target.closest('.card');
   if (!card) return;
+  // 改名模式：点卡片直接打开重命名弹窗，不添加元素
+  if (renamePickMode) { openRenameModal(card.dataset.id); return; }
   const cats = CATALOG[currentTab].categories;
   for (const cat of cats) {
     const item = cat.items.find(x => x.id === card.dataset.id);
@@ -2870,63 +2892,19 @@ grid.addEventListener('click', e => {
   }
 });
 
-// 长按素材卡片（500ms）→ 重命名；移动超过 10px 取消
-// 注意：必须用 TouchEvent 而非 PointerEvent——grid 上 touch-action: pan-y，
-// 浏览器判定滚动时会发 pointercancel 导致长按被取消；touchmove 则会继续触发。
-let pressTimer = null, pressStart = null, longPressFired = false;
-const PRESS_MS = 500, MOVE_TOLERANCE = 10;
-
-function armPress(id, x, y) {
-  pressStart = { x, y, id };
-  longPressFired = false;
-  pressTimer = setTimeout(() => {
-    pressTimer = null;
-    longPressFired = true;
-    suppressClickUntil = performance.now() + 700;
-    if (navigator.vibrate) navigator.vibrate(30);
-    openRenameModal(pressStart.id);
-  }, PRESS_MS);
+// ---- 改名模式：点 ✏ 改名 进入，再点任意素材卡片弹出重命名弹窗 ----
+let renamePickMode = false;
+const tabRenameFab = document.getElementById('tabRenameFab');
+function setRenamePickMode(on) {
+  renamePickMode = on;
+  tabRenameFab.classList.toggle('on', on);
+  grid.classList.toggle('rename-mode', on);
 }
-function cancelPress() {
-  if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
-}
-function movedTooFar(x, y) {
-  return pressStart && (Math.abs(x - pressStart.x) > MOVE_TOLERANCE || Math.abs(y - pressStart.y) > MOVE_TOLERANCE);
-}
-
-// ---- 移动端：TouchEvent（页面可正常滚动，仅真滑动超阈值才取消长按） ----
-grid.addEventListener('touchstart', e => {
-  if (e.target.closest('.card-del')) return;
-  const card = e.target.closest('.card');
-  if (!card || e.touches.length !== 1) return;
-  const t = e.touches[0];
-  armPress(card.dataset.id, t.clientX, t.clientY);
-}, { passive: true });
-
-grid.addEventListener('touchmove', e => {
-  if (!pressTimer) return;
-  const t = e.touches[0];
-  if (t && movedTooFar(t.clientX, t.clientY)) cancelPress();
-}, { passive: true });
-
-['touchend', 'touchcancel'].forEach(ev =>
-  grid.addEventListener(ev, cancelPress, { passive: true })
-);
-
-// ---- 桌面端：鼠标长按（无滚动冲突） ----
-grid.addEventListener('mousedown', e => {
-  if (e.button !== 0) return;
-  if (e.target.closest('.card-del')) return;
-  const card = e.target.closest('.card');
-  if (!card) return;
-  armPress(card.dataset.id, e.clientX, e.clientY);
+tabRenameFab.addEventListener('click', () => {
+  setRenamePickMode(!renamePickMode);
+  if (renamePickMode) showToast('点选要改名的素材，再点此按钮退出');
 });
-grid.addEventListener('mousemove', e => {
-  if (pressTimer && movedTooFar(e.clientX, e.clientY)) cancelPress();
-});
-['mouseup', 'mouseleave'].forEach(ev => grid.addEventListener(ev, cancelPress));
-
-// 阻止移动端长按弹出原生上下文菜单（卡片无需系统菜单）
+// 阻止长按卡片弹出手机原生上下文菜单（改名场景下无意义且干扰操作）
 grid.addEventListener('contextmenu', e => {
   if (e.target.closest('.card')) e.preventDefault();
 });
