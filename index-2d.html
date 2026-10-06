@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>自定义饰品白模工坊</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <!-- 顶部工具栏 -->
+  <header class="toolbar">
+    <div class="brand">
+      <span class="logo">◆</span>
+      <span class="title">饰品白模工坊</span>
+    </div>
+
+    <div class="tools" id="tools">
+      <button class="tool active" data-tool="select" title="选择 (Q)">选择</button>
+      <button class="tool" data-tool="translate" title="移动 (W)">移动</button>
+      <button class="tool" data-tool="rotate" title="旋转 (E)">旋转</button>
+      <button class="tool" data-tool="scale" title="等比缩放 (R)">缩放</button>
+      <button class="tool" data-tool="extrude" title="拉伸 (T)">拉伸</button>
+    </div>
+
+    <div class="toolbar-actions">
+      <label class="space-toggle">
+        <input type="checkbox" id="spaceToggle" checked />
+        <span>局部坐标</span>
+      </label>
+      <label class="wire-toggle">
+        <input type="checkbox" id="wireToggle" />
+        <span>线框</span>
+      </label>
+      <button id="btnCenter" class="btn" title="重置视角">重置视角</button>
+      <button id="btnExport" class="btn primary" title="导出场景为 GLB">导出 GLB</button>
+    </div>
+  </header>
+
+  <div class="app">
+    <!-- 左侧：形状与模板库 -->
+    <aside class="sidebar">
+      <section class="panel">
+        <h3>基础形状</h3>
+        <div class="shape-grid" id="shapeGrid">
+          <button class="shape" data-shape="box" title="正方体">
+            <span class="ico">▣</span>正方体
+          </button>
+          <button class="shape" data-shape="sphere" title="球体">
+            <span class="ico">●</span>球体
+          </button>
+          <button class="shape" data-shape="cylinder" title="圆柱">
+            <span class="ico">▮</span>圆柱
+          </button>
+          <button class="shape" data-shape="cone" title="圆锥">
+            <span class="ico">▲</span>圆锥
+          </button>
+          <button class="shape" data-shape="torus" title="圆环">
+            <span class="ico">◯</span>圆环
+          </button>
+          <button class="shape" data-shape="tetra" title="三角锥">
+            <span class="ico">△</span>三角锥
+          </button>
+          <button class="shape" data-shape="plane" title="平面">
+            <span class="ico">▭</span>平面
+          </button>
+          <button class="shape" data-shape="circle" title="圆片">
+            <span class="ico">◌</span>圆片
+          </button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h3>饰品模板（拓印二次创作）</h3>
+        <div class="shape-grid" id="templateGrid">
+          <button class="shape template" data-template="bracelet" title="手链">
+            <span class="ico">⌁</span>手链
+          </button>
+          <button class="shape template" data-template="hat" title="帽子">
+            <span class="ico">⌂</span>帽子
+          </button>
+          <button class="shape template" data-template="ring" title="戒指">
+            <span class="ico">◉</span>戒指
+          </button>
+          <button class="shape template" data-template="necklace" title="项链">
+            <span class="ico">⌇</span>项链
+          </button>
+        </div>
+        <p class="hint">点击模板后，选中其中零件即可拆分、拉伸、缩放进行二次创作。</p>
+      </section>
+
+      <section class="panel">
+        <h3>对象操作</h3>
+        <div class="action-row">
+          <button id="btnDuplicate" class="btn">复制 Ctrl+D</button>
+          <button id="btnDelete" class="btn danger">删除 Del</button>
+        </div>
+        <div class="action-row">
+            <button id="btnUngroup" class="btn">解组/拆分</button>
+          </div>
+          <div class="action-row">
+            <button id="btnClear" class="btn danger">清空场景</button>
+          </div>
+      </section>
+    </aside>
+
+    <!-- 中间：3D 视口 -->
+    <main class="viewport" id="viewport"></main>
+
+    <!-- 右侧：属性面板 -->
+    <aside class="sidebar right" id="inspector">
+      <section class="panel">
+        <h3>属性</h3>
+        <div id="inspectorEmpty" class="inspector-empty">未选中对象</div>
+        <div id="inspectorBody" class="inspector-body" hidden>
+          <div class="field">
+            <label>名称</label>
+            <input type="text" id="propName" />
+          </div>
+
+          <div class="group-title">位置</div>
+          <div class="vec">
+            <label>X</label><input type="number" step="0.1" id="posX" />
+            <label>Y</label><input type="number" step="0.1" id="posY" />
+            <label>Z</label><input type="number" step="0.1" id="posZ" />
+          </div>
+
+          <div class="group-title">旋转（度）</div>
+          <div class="vec">
+            <label>X</label><input type="number" step="5" id="rotX" />
+            <label>Y</label><input type="number" step="5" id="rotY" />
+            <label>Z</label><input type="number" step="5" id="rotZ" />
+          </div>
+
+          <div class="group-title">缩放 / 拉伸</div>
+          <div class="vec">
+            <label>X</label><input type="number" step="0.1" id="sclX" />
+            <label>Y</label><input type="number" step="0.1" id="sclY" />
+            <label>Z</label><input type="number" step="0.1" id="sclZ" />
+          </div>
+
+          <div class="group-title">材质</div>
+          <div class="color-row">
+            <input type="color" id="propColor" value="#ffffff" />
+            <span class="color-label">颜色</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="extrudePanel" hidden>
+        <h3>拉伸轴向</h3>
+        <div class="axis-row">
+          <button class="axis" data-axis="x">X</button>
+          <button class="axis" data-axis="y">Y</button>
+          <button class="axis" data-axis="z">Z</button>
+        </div>
+        <p class="hint">选择轴向后，在视口中拖拽对应轴的手柄进行拉伸。</p>
+      </section>
+
+      <section class="panel">
+        <h3>提示</h3>
+        <ul class="tips">
+          <li>左键拖拽空白处：旋转视角</li>
+          <li>右键拖拽 / 滚轮：平移与缩放视角</li>
+          <li>点击模型：选中对象</li>
+          <li>拖拽红/绿/蓝手柄：按轴操作</li>
+        </ul>
+      </section>
+    </aside>
+  </div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./lib/three.module.js",
+        "three/addons/": "./lib/"
+      }
+    }
+  </script>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

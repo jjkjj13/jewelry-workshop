@@ -1,0 +1,2978 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>饰品定制工坊</title>
+<!-- 本地 Three.js r160（离线可用）：importmap 把裸模块名 'three' 指向本地文件 -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "./lib/three.module.js",
+    "three/addons/": "./lib/"
+  }
+}
+</script>
+<style>
+  :root {
+    --bg: #16161a;
+    --card: #1f1f24;
+    --text: #e8e8ec;
+    --muted: #8a8a92;
+    --line: #2a2a30;
+    --accent: #c9a961;
+    --dark: #c9a961;
+    --radius: 16px;
+    --pill: #252529;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body { margin: 0; padding: 0; height: 100%; }
+
+  body {
+    background: #0e0e12;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    color: var(--text);
+    display: flex;
+    justify-content: center;
+  }
+
+  /* 移动端优先，最大宽度 480px 居中 */
+  .app {
+    width: 100%;
+    max-width: 480px;
+    height: 100dvh;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* ---------- 顶部导航栏 ---------- */
+  .nav {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px;
+    background: var(--bg);
+  }
+  .nav-title {
+    flex: 1;
+    text-align: center;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+  .nav-btn {
+    border: none;
+    background: transparent;
+    font-size: 20px;
+    color: var(--text);
+    padding: 6px 8px;
+    cursor: pointer;
+    border-radius: 10px;
+  }
+  .nav-btn.share { font-size: 14px; font-weight: 500; color: var(--accent); }
+
+  /* ---------- 状态信息栏 ---------- */
+  .status-bar {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 8px;
+    padding: 0 14px 10px;
+    overflow-x: auto;
+  }
+  .pill {
+    flex: 0 0 auto;
+    background: var(--pill);
+    border-radius: 999px;
+    padding: 7px 12px;
+    font-size: 12px;
+    color: #b8b8c0;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .pill.help { cursor: pointer; }
+
+  /* ---------- 核心操作区：3D 视图 ---------- */
+  .canvas-area {
+    flex: 1 1 auto;
+    min-height: 240px;
+    position: relative;
+    display: flex;
+    padding: 8px 16px;
+    background: linear-gradient(180deg, #16161a 0%, #0e0e12 100%);
+  }
+  /* 3D 视口容器（WebGL canvas 由脚本插入） */
+  #view3d {
+    flex: 1 1 auto;
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.4);
+    background: var(--card);
+  }
+  #view3d canvas { display: block; touch-action: none; }
+
+  /* 视图内浮层：变换模式切换（移动 / 拉伸 / 旋转 / 多选） */
+  .mode-bar {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 2px;
+    background: rgba(20,20,24,0.88);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 999px;
+    padding: 3px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+    z-index: 6;
+  }
+  .m-btn {
+    border: none;
+    background: transparent;
+    font-size: 13px;
+    color: var(--muted);
+    padding: 6px 13px;
+    border-radius: 999px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .m-btn.active { background: var(--accent); color: #16161a; }
+  .m-btn.on { background: var(--pill); color: var(--accent); font-weight: 600; }
+
+  .sound-fab {
+    position: absolute;
+    right: 18px;
+    bottom: 18px;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: var(--card);
+    font-size: 18px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    z-index: 6;
+  }
+
+  /* ---------- 颜色面板（浮层） ---------- */
+  .color-panel {
+    position: absolute;
+    top: 52px;
+    right: 12px;
+    width: 240px;
+    background: rgba(20,20,24,0.94);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 10px;
+    box-shadow: 0 6px 22px rgba(0,0,0,0.5);
+    z-index: 8;
+  }
+  .cp-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .cp-close {
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 4px;
+  }
+  .cp-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 6px;
+  }
+  .cp-swatch {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.08);
+    cursor: pointer;
+    padding: 0;
+  }
+  .cp-swatch.active { border: 2px solid var(--accent); }
+  .cp-custom {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .cp-custom input[type=color] {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    cursor: pointer;
+    padding: 0;
+  }
+  .cp-hex { font-family: ui-monospace, monospace; color: var(--text); }
+
+  /* ---------- 主操作按钮行（可横向滚动 + 底部拖拽条） ---------- */
+  .actions {
+    flex: 0 0 auto;
+    display: flex;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 10px 12px 4px;
+    background: var(--bg);
+  }
+  .actions::-webkit-scrollbar { display: none; }
+  .actions-track {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex: 0 0 auto;
+    width: max-content;
+  }
+  .act {
+    flex: 0 0 auto;
+    height: 46px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    cursor: pointer;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 0 14px;
+  }
+  .act:active { opacity: 0.7; }
+  .act.trash {
+    flex: 0 0 46px;
+    border-radius: 50%;
+    background: var(--card);
+    color: #e05555;
+    font-size: 18px;
+    padding: 0;
+  }
+  .act.circle {
+    flex: 0 0 46px;
+    border-radius: 50%;
+    background: var(--card);
+    color: var(--text);
+    font-size: 18px;
+    padding: 0;
+  }
+  .act.primary {
+    background: var(--accent);
+    color: #16161a;
+    border-color: var(--accent);
+  }
+  /* 拖拽条：长度反映按钮总宽 vs 视口宽，可拖动滚 actions */
+  .actions-dragbar {
+    flex: 0 0 auto;
+    height: 18px;
+    padding: 4px 12px 8px;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+  }
+  .actions-dragbar-thumb {
+    width: 60px;
+    height: 3px;
+    border-radius: 2px;
+    background: #4a4a52;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .actions-dragbar-thumb.dragging { background: var(--accent); }
+
+  /* ---------- 底部素材面板 Bottom Sheet ---------- */
+  .sheet {
+    flex: 0 0 auto;
+    height: 270px;
+    background: var(--card);
+    border-radius: 22px 22px 0 0;
+    box-shadow: 0 -6px 24px rgba(0,0,0,0.4);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .sheet-handle {
+    height: 26px;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: row-resize;
+    touch-action: none;
+  }
+  .sheet-handle::before {
+    content: "";
+    width: 40px;
+    height: 4px;
+    border-radius: 2px;
+    background: #4a4a52;
+  }
+  .sheet-tabs {
+    flex: 0 0 auto;
+    display: flex;
+    padding: 2px 14px 10px;
+    gap: 8px;
+    position: relative;
+    align-items: center;
+  }
+  .tab {
+    flex: 1;
+    height: 36px;
+    border-radius: 999px;
+    border: none;
+    background: var(--pill);
+    color: #b8b8c0;
+    font-size: 14px;
+    cursor: pointer;
+    position: relative;
+  }
+  .tab-edit-btn {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: var(--bg);
+    color: var(--accent);
+    font-size: 10px;
+    line-height: 1;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    z-index: 3;
+  }
+  .tabs-edit-mode .tab-edit-btn { display: inline-flex; }
+  .tabs-edit-mode .tab { padding-right: 24px; }
+  .tab-edit-fab {
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: var(--pill);
+    color: var(--accent);
+    font-size: 12px;
+    cursor: pointer;
+    padding: 0;
+    margin-left: 4px;
+  }
+  .tab.active { background: var(--accent); color: #16161a; font-weight: 600; }
+
+  .sheet-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+  }
+  /* 左侧分类栏约 80px */
+  .cat-col {
+    flex: 0 0 82px;
+    overflow-y: auto;
+    padding: 0 8px 12px;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .cat {
+    border: none;
+    background: transparent;
+    border-radius: 12px;
+    padding: 10px 6px;
+    font-size: 13px;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .cat.active { background: var(--card); color: var(--text); font-weight: 600; box-shadow: 0 2px 6px rgba(0,0,0,0.3); }
+
+  /* 右侧素材网格（两列，可滚动） */
+  .grid {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding: 4px 12px 16px;
+    touch-action: pan-y;
+  }
+  .card {
+    position: relative;
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 10px;
+    text-align: center;
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .card:active { border-color: var(--accent); }
+  .card-del {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0,0,0,0.45);
+    color: #e05555;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+  .card-del:active { background: #e05555; color: #fff; }
+  .preview { height: 52px; display: flex; align-items: center; justify-content: center; }
+  .preview svg { width: 48px; height: 48px; }
+  .c-name { font-size: 13px; font-weight: 600; margin-top: 6px; }
+  .c-spec { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /* ---------- 图层面板 ---------- */
+  .layer-list {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 4px 12px 16px;
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    touch-action: pan-y;
+  }
+  .layer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg);
+    border-radius: 12px;
+    padding: 10px;
+    border: 1px solid transparent;
+    cursor: pointer;
+  }
+  .layer.active { border-color: var(--accent); background: rgba(201,169,97,0.12); }
+  .layer.hidden .l-name, .layer.hidden .l-swatch { opacity: 0.4; }
+  .l-swatch {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.08);
+    flex: 0 0 auto;
+  }
+  .l-name {
+    flex: 1 1 auto;
+    font-size: 13px;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .l-btn {
+    border: none;
+    background: var(--pill);
+    border-radius: 8px;
+    width: 27px; height: 27px;
+    font-size: 12px;
+    padding: 0;
+    cursor: pointer;
+    flex: 0 0 auto;
+    color: var(--text);
+  }
+  .l-btn.danger { color: #e05555; }
+  .layer-empty { text-align: center; color: var(--muted); font-size: 13px; padding: 30px 0; }
+
+  .layer-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 2px;
+  }
+  .l-tool {
+    border: 1px solid var(--line);
+    background: var(--pill);
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--text);
+  }
+  .layer-hint { margin-left: auto; font-size: 11px; color: var(--muted); }
+
+  /* ---------- Toast ---------- */
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: 100px;
+    transform: translateX(-50%) translateY(20px);
+    background: rgba(40,40,46,0.95);
+    color: #e8e8ec;
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 13px;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.25s ease;
+    z-index: 50;
+    max-width: 80vw;
+    text-align: center;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ---------- 弹窗 ---------- */
+  .modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.65);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 24px;
+  }
+  .modal.show { display: flex; }
+  .modal-box {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 18px;
+    width: 100%;
+    max-width: 320px;
+    text-align: center;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+  .modal-box img { width: 100%; border-radius: 10px; display: block; }
+  .modal-title { font-size: 15px; font-weight: 600; margin: 10px 0 4px; color: var(--text); }
+  .modal-desc { font-size: 12px; color: var(--muted); line-height: 1.6; }
+  .modal-close {
+    margin-top: 14px;
+    width: 100%;
+    height: 42px;
+    border-radius: 999px;
+    border: none;
+    background: var(--accent);
+    color: #16161a;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .ai-input {
+    width: 100%;
+    min-height: 56px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--bg);
+    color: var(--text);
+    padding: 8px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    margin-top: 8px;
+    resize: none;
+  }
+  .ai-row { display: flex; gap: 6px; margin-top: 8px; }
+  .ai-select {
+    flex: 1;
+    height: 40px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--bg);
+    color: var(--text);
+    padding: 0 10px;
+    font-size: 13px;
+  }
+  .ai-run {
+    flex: 1;
+    height: 40px;
+    border-radius: 999px;
+    border: none;
+    background: var(--accent);
+    color: #16161a;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .ai-status { font-size: 12px; color: var(--muted); margin-top: 8px; }
+</style>
+</head>
+<body>
+  <div class="app">
+    <!-- 1. 顶部导航栏 -->
+    <header class="nav">
+      <button class="nav-btn" id="btnBack">‹</button>
+      <button class="nav-btn" id="btnUndo" title="撤销">↶</button>
+      <button class="nav-btn" id="btnRedo" title="重做">↷</button>
+      <div class="nav-title">饰品定制工坊</div>
+      <button class="nav-btn" id="btnAi" title="AI 渲染">✨</button>
+      <button class="nav-btn" id="btnMore" title="复位视角">···</button>
+      <button class="nav-btn share" id="btnShare">分享</button>
+    </header>
+
+    <!-- 2. 状态信息栏 -->
+    <div class="status-bar">
+      <span class="pill" id="statusWrist">手围: 13.7cm</span>
+      <span class="pill help" id="btnHelp">帮助 ?</span>
+    </div>
+
+    <!-- 3. 核心操作区：可触屏 3D 视图 -->
+    <div class="canvas-area" id="canvasArea">
+      <div id="view3d"></div>
+      <div class="mode-bar" id="modeBar">
+        <button class="m-btn active" data-mode="translate" title="移动">✥ 移动</button>
+        <button class="m-btn" data-mode="scale" title="拉伸/缩放">⤢ 拉伸</button>
+        <button class="m-btn" data-mode="rotate" title="旋转">⟳ 旋转</button>
+        <button class="m-btn" id="btnMulti" title="多选模式">☑ 多选</button>
+        <button class="m-btn" id="btnTopView" title="顶视图">⊤ 顶视</button>
+        <button class="m-btn" id="btnSnap" title="顶点吸附">⊙ 吸附</button>
+      </div>
+      <button class="sound-fab" id="btnSound">🔊</button>
+      <!-- 颜色表面层 -->
+      <div class="color-panel" id="colorPanel" style="display:none">
+        <div class="cp-head">
+          <span>调色板</span>
+          <button class="cp-close" id="colorClose">×</button>
+        </div>
+        <div class="cp-grid" id="colorGrid"></div>
+        <label class="cp-custom">
+          自定义
+          <input type="color" id="colorPicker" value="#c9a961" />
+          <span class="cp-hex" id="colorHex">#c9a961</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- 4. 主操作按钮行（可横向滚动，底部带拖拽条） -->
+    <div class="actions" id="actionsRow">
+      <div class="actions-track" id="actionsTrack">
+        <button class="act trash" id="btnDelete" title="删除选中">🗑</button>
+        <button class="act circle" id="btnDuplicate" title="复制选中">⧉</button>
+        <button class="act circle" id="btnCustom" title="存为自定义元素">⭐</button>
+        <button class="act circle" id="btnBase" title="贴底座">◎</button>
+        <button class="act circle" id="btnRing12" title="均布到圆环12顶点">⊚</button>
+        <button class="act circle" id="btnColor" title="调色">🎨</button>
+        <button class="act" id="btnDraft">✔ 草稿</button>
+        <button class="act" id="btnSave">🖼️ 图片</button>
+        <button class="act primary" id="btnFinish">☑ 完成</button>
+      </div>
+    </div>
+    <div class="actions-dragbar" id="actionsDragbar">
+      <div class="actions-dragbar-thumb" id="actionsDragbarThumb"></div>
+    </div>
+
+    <!-- 5. 底部素材面板 Bottom Sheet -->
+    <div class="sheet" id="sheet">
+      <div class="sheet-handle" id="sheetHandle"></div>
+      <div class="sheet-tabs" id="tabs">
+        <button class="tab active" data-tab="base">基础白模</button>
+        <button class="tab" data-tab="bead">珠子</button>
+        <button class="tab" data-tab="acc">配饰</button>
+        <button class="tab" data-tab="custom">自定义</button>
+        <button class="tab" data-tab="layers">图层</button>
+        <button class="tab-edit-fab" id="tabEditFab" title="编辑顺序">✎</button>
+      </div>
+      <div class="sheet-body">
+        <div class="cat-col" id="catCol"></div>
+        <div class="grid" id="grid"></div>
+        <div class="layer-list" id="layerList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <!-- 弹窗（图片预览 / 帮助） -->
+  <div class="modal" id="modal">
+    <div class="modal-box">
+      <img id="modalImg" style="display:none" alt="设计预览" />
+      <div id="modalText" style="display:none"></div>
+      <button class="modal-close" id="modalClose">关闭</button>
+    </div>
+  </div>
+
+  <!-- AI 材质贴图弹窗 -->
+  <div class="modal" id="aiModal">
+    <div class="modal-box">
+      <div class="modal-title">材质库</div>
+      <div class="modal-desc">选择预置材质，即时应用到选中对象</div>
+      <div class="ai-row">
+        <select class="ai-select" id="aiStyle">
+          <option value="marble">大理石</option>
+          <option value="matteGold">磨砂金</option>
+          <option value="wood">木纹</option>
+          <option value="enamel">珐琅彩</option>
+          <option value="sapphire">蓝宝石</option>
+          <option value="jade">翡翠</option>
+        </select>
+        <button class="ai-run" id="aiRun">应用材质</button>
+      </div>
+      <button class="ai-run" id="btnImportTexture" style="width:100%;margin-top:10px">🖼️ 导入材质图</button>
+      <input type="file" id="textureImport" accept="image/*" style="display:none" />
+      <img id="aiResult" style="display:none;width:100%;border-radius:10px;margin-top:10px" alt="材质预览" />
+      <div class="ai-status" id="aiStatus" style="display:none"></div>
+      <button class="modal-close" id="aiClose">关闭</button>
+    </div>
+  </div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/OrbitControls.js';
+import { TransformControls } from 'three/addons/TransformControls.js';
+
+/* =====================================================
+   常量
+   单位约定：1 个 Three.js 单位 = 10mm = 1cm
+   初始手围 137mm = 13.7cm
+===================================================== */
+const MM_PER_UNIT = 10;
+const WRIST_MM = 137;
+const STORAGE_KEY = 'jewelry_diy_draft_3d';
+// 圆环底座半径（由目标手围反推），保证初始手围 = 13.7cm
+const RING_R = WRIST_MM / MM_PER_UNIT / (2 * Math.PI); // ≈ 2.18 单位
+const GROUND_Y = -0.75;                                // 地面高度（托住 12mm 珠）
+
+/* =====================================================
+   DOM 引用
+===================================================== */
+const $ = s => document.querySelector(s);
+const viewEl = document.getElementById('view3d');
+const statusWrist = document.getElementById('statusWrist');
+const catCol = document.getElementById('catCol');
+const grid = document.getElementById('grid');
+const layerList = document.getElementById('layerList');
+const sheet = document.getElementById('sheet');
+const toastEl = document.getElementById('toast');
+const modal = document.getElementById('modal');
+const modalImg = document.getElementById('modalImg');
+const modalText = document.getElementById('modalText');
+
+/* =====================================================
+   素材数据（tabs -> categories -> items）
+   item：id/name/spec/sizeMm/color/type
+   type 决定 3D 造型：ring/oval/band/circle/tear/heart/tassel/chain
+===================================================== */
+const CATALOG = {
+  base: {
+    label: '基础白模',
+    categories: [
+      { name: '底座', items: [
+        { id:'ring', name:'圆环底座', spec:'内径约55mm', sizeMm:137, color:'#e8ddc9', type:'ring' }
+      ]},
+      { name: '白模珠', items: [
+        { id:'wb8', name:'圆珠白模', spec:'8mm', sizeMm:8, color:'#f5f1ea', type:'circle' },
+        { id:'wb10', name:'圆珠白模', spec:'10mm', sizeMm:10, color:'#f5f1ea', type:'circle' },
+        { id:'wb12', name:'圆珠白模', spec:'12mm', sizeMm:12, color:'#f5f1ea', type:'circle' }
+      ]},
+      { name: '异形珠', items: [
+        { id:'scyl', name:'圆柱珠', spec:'约10mm', sizeMm:10, color:'#e8e0d0', type:'cylinder' },
+        { id:'sdisc', name:'圆盘珠', spec:'约12mm', sizeMm:12, color:'#e8e0d0', type:'disc' },
+        { id:'scap', name:'胶囊珠', spec:'约12mm', sizeMm:12, color:'#e8e0d0', type:'capsule' },
+        { id:'socta', name:'八面体', spec:'约12mm', sizeMm:12, color:'#e8e0d0', type:'octa' },
+        { id:'sdode', name:'十二面体', spec:'约12mm', sizeMm:12, color:'#e8e0d0', type:'dodeca' },
+        { id:'sbico', name:'双锥珠', spec:'约14mm', sizeMm:14, color:'#e8e0d0', type:'bicone' },
+        { id:'stube', name:'长管珠', spec:'约16mm', sizeMm:16, color:'#e8e0d0', type:'tube' },
+        { id:'shexa', name:'六棱珠', spec:'约12mm', sizeMm:12, color:'#e8e0d0', type:'hexprism' }
+      ]},
+      { name: '帽子', items: [
+        { id:'hcap', name:'鸭舌帽', spec:'约180mm', sizeMm:180, color:'#2a2a30', type:'cap' },
+        { id:'hberet', name:'贝雷帽', spec:'约180mm', sizeMm:180, color:'#a83232', type:'beret' },
+        { id:'hbucket', name:'渔夫帽', spec:'约180mm', sizeMm:180, color:'#6a7a8c', type:'bucket' }
+      ]}
+    ]
+  },
+  bead: {
+    label: '珠子',
+    categories: [
+      { name:'珍珠', items: [
+        { id:'p8', name:'淡水珍珠', spec:'8mm', sizeMm:8, color:'#f6f2ea', type:'circle' },
+        { id:'p6', name:'小珍珠', spec:'6mm', sizeMm:6, color:'#f8f5ef', type:'circle' }
+      ]},
+      { name:'水晶', items: [
+        { id:'c10', name:'海蓝水晶', spec:'10mm', sizeMm:10, color:'#9fd0f5', type:'circle' },
+        { id:'c12', name:'冰蓝水晶', spec:'12mm', sizeMm:12, color:'#7fb9ea', type:'circle' }
+      ]},
+      { name:'金属', items: [
+        { id:'m12', name:'银质珠', spec:'12mm', sizeMm:12, color:'#c6c9cf', type:'circle' },
+        { id:'m10', name:'镀金珠', spec:'10mm', sizeMm:10, color:'#e0c078', type:'circle' }
+      ]},
+      { name:'玉石', items: [
+        { id:'j9', name:'翡翠珠', spec:'9mm', sizeMm:9, color:'#7fbf8f', type:'circle' },
+        { id:'a10', name:'红玛瑙', spec:'10mm', sizeMm:10, color:'#d97b7b', type:'circle' }
+      ]}
+    ]
+  },
+  acc: {
+    label: '配饰',
+    categories: [
+      { name:'吊坠', items: [
+        { id:'tear', name:'泪滴吊坠', spec:'高约20mm', sizeMm:20, color:'#e8c25c', type:'tear' },
+        { id:'heart', name:'心形吊坠', spec:'约18mm', sizeMm:18, color:'#e58f8f', type:'heart' }
+      ]},
+      { name:'流苏链', items: [
+        { id:'tassel', name:'流苏', spec:'长约40mm', sizeMm:40, color:'#c9a86a', type:'tassel' },
+        { id:'chain', name:'短链', spec:'长约50mm', sizeMm:50, color:'#cfd2d6', type:'chain' }
+      ]},
+      { name:'几何', items: [
+        { id:'gtetra', name:'三角锥', spec:'约18mm', sizeMm:18, color:'#d4b06a', type:'tetra' },
+        { id:'gstar5', name:'五角星', spec:'约22mm', sizeMm:22, color:'#e0c078', type:'star5' },
+        { id:'gcone4', name:'四棱锥', spec:'约20mm', sizeMm:20, color:'#b8a060', type:'cone4' },
+        { id:'gcube', name:'立方体', spec:'约16mm', sizeMm:16, color:'#c6c9cf', type:'cube' }
+      ]}
+    ]
+  },
+  custom: {
+    label: '自定义',
+    categories: [{ name: '我的收藏', items: [] }]
+  }
+};
+
+const CUSTOM_KEY = 'jewelry_diy_custom_elements';
+const HIDDEN_KEY = 'jewelry_diy_hidden_elements'; // 被删除的自带元素 id 列表
+
+/* =====================================================
+   3D 核心对象
+===================================================== */
+let renderer, scene, camera, orbit, tcontrol, designRoot;
+const raycaster = new THREE.Raycaster();
+const pointerNDC = new THREE.Vector2();
+
+/* =====================================================
+   材质工厂：不同品类呈现不同质感
+===================================================== */
+function beadMaterial(item) {
+  const color = new THREE.Color(item.color);
+  // 通过 id 前缀判断品类（p 珍珠 / c 水晶 / m 金属 / j 玉石 / wb 白模）
+  if (item.id.indexOf('p') === 0) {
+    // 珍珠：柔和光泽 + 清漆层
+    return new THREE.MeshPhysicalMaterial({
+      color, roughness: 0.28, metalness: 0,
+      clearcoat: 0.8, clearcoatRoughness: 0.25
+    });
+  }
+  if (item.id.indexOf('c') === 0) {
+    // 水晶：低粗糙度 + 半透明 + 清漆，呈现玻璃质感
+    return new THREE.MeshPhysicalMaterial({
+      color, roughness: 0.06, metalness: 0,
+      transparent: true, opacity: 0.78,
+      clearcoat: 1.0, clearcoatRoughness: 0.05
+    });
+  }
+  if (item.id.indexOf('m') === 0) {
+    // 金属珠：全金属度
+    return new THREE.MeshStandardMaterial({ color, roughness: 0.28, metalness: 1.0 });
+  }
+  if (item.id.indexOf('j') === 0 || item.id === 'a10') {
+    // 玉石/玛瑙：温润微亮
+    return new THREE.MeshPhysicalMaterial({
+      color, roughness: 0.38, metalness: 0.05,
+      clearcoat: 0.6, clearcoatRoughness: 0.35
+    });
+  }
+  // 白模珠：哑光石膏感
+  return new THREE.MeshStandardMaterial({ color, roughness: 0.75, metalness: 0 });
+}
+
+/* =====================================================
+   程序化环境贴图（PMREM）
+   无外部 HDR 资源：用一个上亮下暗的渐变球生成环境，
+   让金属/水晶有自然的反射高光。
+===================================================== */
+function buildEnvironment() {
+  const envScene = new THREE.Scene();
+  const geo = new THREE.SphereGeometry(20, 32, 16);
+  const top = new THREE.Color(0x6a6256);
+  const mid = new THREE.Color(0x2a2630);
+  const bottom = new THREE.Color(0x121018);
+  const data = [];
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i) / 20; // -1 ~ 1
+    let c;
+    if (y >= 0) c = mid.clone().lerp(top, y);
+    else c = mid.clone().lerp(bottom, -y);
+    data.push(c.r, c.g, c.b);
+  }
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(data, 3));
+  envScene.add(new THREE.Mesh(
+    geo,
+    new THREE.MeshBasicMaterial({ side: THREE.BackSide, vertexColors: true })
+  ));
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envRT = pmrem.fromScene(envScene, 0.04);
+  pmrem.dispose();
+  return envRT.texture;
+}
+
+/* =====================================================
+   根据素材 item 构建 3D 模型（返回 Object3D 根节点）
+===================================================== */
+function buildFromItem(item) {
+  let root = null;
+
+  if (item.type === 'ring' || item.type === 'oval' || item.type === 'band') {
+    // ---- 底座：圆环(Torus)默认在 XY 平面，绕 X 转 90° 平放到 XZ 平面 ----
+    let tube = 0.175;                 // 普通底座管径 ≈ 1.75mm
+    const torus = new THREE.Mesh(
+      new THREE.TorusGeometry(RING_R, tube, 24, 120),
+      new THREE.MeshStandardMaterial({ color: new THREE.Color(item.color), roughness: 0.45, metalness: 0.08 })
+    );
+    torus.rotation.x = Math.PI / 2;
+    root = torus;
+    root.userData.baseR = RING_R; // 供手围计算
+  }
+  else if (item.type === 'circle') {
+    // ---- 珠子：球体，半径由 mm 换算 ----
+    const r = item.sizeMm / MM_PER_UNIT / 2;
+    root = new THREE.Mesh(
+      new THREE.SphereGeometry(r, 48, 32),
+      beadMaterial(item)
+    );
+  }
+  else if (item.type === 'tear') {
+    // ---- 泪滴吊坠：用车削(Lathe)轮廓生成 ----
+    const pts = [
+      new THREE.Vector2(0.001, -1.00),
+      new THREE.Vector2(0.13, -0.90),
+      new THREE.Vector2(0.33, -0.58),
+      new THREE.Vector2(0.43, -0.18),
+      new THREE.Vector2(0.38,  0.28),
+      new THREE.Vector2(0.25,  0.62),
+      new THREE.Vector2(0.10,  0.86),
+      new THREE.Vector2(0.001, 0.92)
+    ];
+    const body = new THREE.Mesh(
+      new THREE.LatheGeometry(pts, 48),
+      new THREE.MeshStandardMaterial({ color: new THREE.Color(item.color), roughness: 0.25, metalness: 0.9 })
+    );
+    // 顶部小挂环
+    const loop = new THREE.Mesh(
+      new THREE.TorusGeometry(0.10, 0.028, 12, 32),
+      new THREE.MeshStandardMaterial({ color: new THREE.Color(item.color), roughness: 0.25, metalness: 0.9 })
+    );
+    loop.position.y = 0.98;
+    loop.rotation.x = Math.PI / 2;
+    root = new THREE.Group();
+    root.add(body, loop);
+  }
+  else if (item.type === 'heart') {
+    // ---- 心形吊坠：2D 心形轮廓 + 挤出(Extrude)带倒角，形成饱满立体 ----
+    const shape = new THREE.Shape();
+    shape.moveTo(0, -1.1);
+    shape.bezierCurveTo(-1.35, 0.10, -1.35, 1.00, -0.70, 1.00);
+    shape.bezierCurveTo(-0.30, 1.00, 0, 0.70, 0, 0.35);
+    shape.bezierCurveTo(0, 0.70, 0.30, 1.00, 0.70, 1.00);
+    shape.bezierCurveTo(1.35, 1.00, 1.35, 0.10, 0, -1.1);
+    const geo = new THREE.ExtrudeGeometry(shape, {
+      depth: 0.45,
+      bevelEnabled: true,
+      bevelThickness: 0.13,
+      bevelSize: 0.13,
+      bevelSegments: 5,
+      curveSegments: 24
+    });
+    geo.center();
+    root = new THREE.Mesh(
+      geo,
+      new THREE.MeshPhysicalMaterial({
+        color: new THREE.Color(item.color), roughness: 0.32, metalness: 0.05,
+        clearcoat: 0.7, clearcoatRoughness: 0.3
+      })
+    );
+    root.scale.setScalar(0.82);
+  }
+  else if (item.type === 'tassel') {
+    // ---- 流苏：挂环 + 盖帽 + 若干细穗 ----
+    const gold = new THREE.MeshStandardMaterial({ color: new THREE.Color(item.color), roughness: 0.4, metalness: 0.7 });
+    root = new THREE.Group();
+    const loop = new THREE.Mesh(new THREE.TorusGeometry(0.10, 0.025, 10, 28), gold);
+    loop.position.y = 1.85;
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.16, 0.22, 20), gold);
+    cap.position.y = 1.60;
+    root.add(loop, cap);
+    for (let i = -3; i <= 3; i++) {
+      const strand = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.018, 0.012, 1.35, 8),
+        gold
+      );
+      strand.position.set(i * 0.055, 0.82, Math.abs(i) * 0.012);
+      strand.rotation.z = i * 0.035; // 轻微散开
+      root.add(strand);
+    }
+  }
+  else if (item.type === 'chain') {
+    // ---- 短链：5 个链环(Torus)竖向排列，相邻环互相垂直 ----
+    const metal = new THREE.MeshStandardMaterial({ color: new THREE.Color(item.color), roughness: 0.28, metalness: 1 });
+    root = new THREE.Group();
+    for (let k = 0; k < 5; k++) {
+      const link = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.045, 12, 28), metal);
+      link.position.y = (k - 2) * 0.34;
+      if (k % 2 === 1) link.rotation.y = Math.PI / 2;
+      root.add(link);
+    }
+  }
+  else if (item.type === 'tetra') {
+    // ---- 三角锥：TetrahedronGeometry（4 顶点 4 面） ----
+    const r = item.sizeMm / MM_PER_UNIT / 2;
+    root = new THREE.Mesh(
+      new THREE.TetrahedronGeometry(r, 0),
+      new THREE.MeshStandardMaterial({ color: new THREE.Color(item.color), roughness: 0.35, metalness: 0.15 })
+    );
+  }
+  else if (item.type === 'star5') {
+    // ---- 五角星：2D Shape + ExtrudeGeometry ----
+    const R = item.sizeMm / MM_PER_UNIT / 2;
+    const r = R * 0.4;
+    const shape = new THREE.Shape();
+    for (let i = 0; i < 10; i++) {
+      const ang = (i * Math.PI) / 5 - Math.PI / 2;
+      const rad = (i % 2 === 0) ? R : r;
+      const x = Math.cos(ang) * rad;
+      const y = Math.sin(ang) * rad;
+      if (i === 0) shape.moveTo(x, y); else shape.lineTo(x, y);
+    }
+    shape.closePath();
+    const geo = new THREE.ExtrudeGeometry(shape, {
+      depth: R * 0.25,
+      bevelEnabled: true,
+      bevelThickness: R * 0.05,
+      bevelSize: R * 0.05,
+      bevelSegments: 2,
+      curveSegments: 1
+    });
+    geo.center();
+    root = new THREE.Mesh(
+      geo,
+      new THREE.MeshStandardMaterial({ color: new THREE.Color(item.color), roughness: 0.3, metalness: 0.6 })
+    );
+  }
+  else if (item.type === 'cone4') {
+    // ---- 四棱锥：ConeGeometry 4 段截面 ----
+    const r = item.sizeMm / MM_PER_UNIT / 2;
+    const h = item.sizeMm / MM_PER_UNIT * 0.9;
+    root = new THREE.Mesh(
+      new THREE.ConeGeometry(r, h, 4),
+      new THREE.MeshStandardMaterial({ color: new THREE.Color(item.color), roughness: 0.4, metalness: 0.2 })
+    );
+    root.rotation.y = Math.PI / 4; // 让底面对角线水平
+  }
+  else if (item.type === 'cube') {
+    // ---- 立方体：BoxGeometry ----
+    const s = item.sizeMm / MM_PER_UNIT;
+    root = new THREE.Mesh(
+      new THREE.BoxGeometry(s, s, s),
+      new THREE.MeshStandardMaterial({ color: new THREE.Color(item.color), roughness: 0.35, metalness: 0.3 })
+    );
+  }
+  else if (item.type === 'cylinder') {
+    // ---- 圆柱珠：CylinderGeometry ----
+    const r = item.sizeMm / MM_PER_UNIT / 2;
+    const h = item.sizeMm / MM_PER_UNIT;
+    root = new THREE.Mesh(
+      new THREE.CylinderGeometry(r, r, h, 32),
+      new THREE.MeshStandardMaterial({ color: new THREE.Color(item.color), roughness: 0.35, metalness: 0.15 })
+    );
+  }
+  else if (item.type === 'disc') {
+    // ---- 圆盘珠：扁圆柱 ----
+    const r = item.sizeMm / MM_PER_UNIT / 2;
+    const h = item.sizeMm / MM_PER_UNIT * 0.45;
+    root = new THREE.Mesh(
+      new THREE.CylinderGeometry(r, r, h, 40),
+      new THREE.MeshStandardMaterial({ color: new THREE.Color(item.color), roughness: 0.35, metalness: 0.15 })
+    );
+  }
+  else if (item.type === 'capsule') {
+    // ---- 胶囊珠：CapsuleGeometry（圆柱+两端半球） ----
+    const r = item.sizeMm / MM_PER_UNIT / 2 * 0.6;
+    const h = item.sizeMm / MM_PER_UNIT;
+    root = new THREE.Mesh(
+      new THREE.CapsuleGeometry(r, h, 8, 24),
+      new THREE.MeshStandardMaterial({ color: new THREE.Color(item.color), roughness: 0.35, metalness: 0.15 })
+    );
+  }
+  else if (item.type === 'octa') {
+    // ---- 八面体：OctahedronGeometry ----
+    const r = item.sizeMm / MM_PER_UNIT / 2;
+    root = new THREE.Mesh(
+      new THREE.OctahedronGeometry(r, 0),
+      new THREE.MeshStandardMaterial({ color: new THREE.Color(item.color), roughness: 0.3, metalness: 0.25 })
+    );
+  }
+  else if (item.type === 'dodeca') {
+    // ---- 十二面体：DodecahedronGeometry ----
+    const r = item.sizeMm / MM_PER_UNIT / 2;
+    root = new THREE.Mesh(
+      new THREE.DodecahedronGeometry(r, 0),
+      new THREE.MeshStandardMaterial({ color: new THREE.Color(item.color), roughness: 0.3, metalness: 0.25 })
+    );
+  }
+  else if (item.type === 'bicone') {
+    // ---- 双锥珠：上下两个圆锥底对底 ----
+    const r = item.sizeMm / MM_PER_UNIT / 2 * 0.85;
+    const h = item.sizeMm / MM_PER_UNIT / 2;
+    const mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(item.color), roughness: 0.3, metalness: 0.2 });
+    root = new THREE.Group();
+    const top = new THREE.Mesh(new THREE.ConeGeometry(r, h, 24), mat);
+    top.position.y = h / 2;
+    const bottom = new THREE.Mesh(new THREE.ConeGeometry(r, h, 24), mat);
+    bottom.position.y = -h / 2;
+    bottom.rotation.x = Math.PI;
+    root.add(top, bottom);
+  }
+  else if (item.type === 'tube') {
+    // ---- 长管珠：细长圆柱，两端切平 ----
+    const r = item.sizeMm / MM_PER_UNIT / 2 * 0.5;
+    const h = item.sizeMm / MM_PER_UNIT;
+    root = new THREE.Mesh(
+      new THREE.CylinderGeometry(r, r, h, 24),
+      new THREE.MeshStandardMaterial({ color: new THREE.Color(item.color), roughness: 0.4, metalness: 0.15 })
+    );
+  }
+  else if (item.type === 'hexprism') {
+    // ---- 六棱珠：CylinderGeometry 6 段截面（六角棱柱） ----
+    const r = item.sizeMm / MM_PER_UNIT / 2;
+    const h = item.sizeMm / MM_PER_UNIT;
+    root = new THREE.Mesh(
+      new THREE.CylinderGeometry(r, r, h, 6),
+      new THREE.MeshStandardMaterial({ color: new THREE.Color(item.color), roughness: 0.32, metalness: 0.2 })
+    );
+  }
+  else if (item.type === 'cap') {
+    // ---- 鸭舌帽：半球帽体 + 前伸扁帽檐 ----
+    const r = 1.2;
+    const mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(item.color), roughness: 0.55, metalness: 0.1 });
+    root = new THREE.Group();
+    const dome = new THREE.Mesh(
+      new THREE.SphereGeometry(r, 28, 16, 0, Math.PI * 2, 0, Math.PI / 2),
+      mat
+    );
+    const brim = new THREE.Mesh(
+      new THREE.BoxGeometry(r * 1.85, 0.08, r * 0.95),
+      mat
+    );
+    brim.position.set(0, -0.02, r * 0.75);
+    root.add(dome, brim);
+    root.position.y = 0.35;
+  }
+  else if (item.type === 'beret') {
+    // ---- 贝雷帽：扁圆盘 + 顶部小球 ----
+    const r = 1.3;
+    const mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(item.color), roughness: 0.5, metalness: 0.05 });
+    root = new THREE.Group();
+    const disc = new THREE.Mesh(
+      new THREE.CylinderGeometry(r, r * 0.92, 0.22, 40),
+      mat
+    );
+    const knob = new THREE.Mesh(
+      new THREE.SphereGeometry(0.1, 16, 12),
+      mat
+    );
+    knob.position.y = 0.15;
+    root.add(disc, knob);
+    root.position.y = 0.35;
+  }
+  else if (item.type === 'bucket') {
+    // ---- 渔夫帽：圆台帽体 + 扁平帽檐 ----
+    const r = 1.1;
+    const mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(item.color), roughness: 0.6, metalness: 0.05 });
+    const matDouble = new THREE.MeshStandardMaterial({ color: new THREE.Color(item.color), roughness: 0.6, metalness: 0.05, side: THREE.DoubleSide });
+    root = new THREE.Group();
+    const cone = new THREE.Mesh(
+      new THREE.CylinderGeometry(r * 0.85, r, 0.85, 32, 1, true),
+      matDouble
+    );
+    cone.position.y = 0.42;
+    const top = new THREE.Mesh(
+      new THREE.CircleGeometry(r * 0.85, 32),
+      mat
+    );
+    top.rotation.x = -Math.PI / 2;
+    top.position.y = 0.85;
+    const brim = new THREE.Mesh(
+      new THREE.RingGeometry(r, r * 1.55, 32),
+      matDouble
+    );
+    brim.rotation.x = -Math.PI / 2;
+    brim.position.y = 0.02;
+    root.add(cone, top, brim);
+  }
+
+  if (root) {
+    root.userData.itemId = item.id;
+    // 所有网格开启阴影
+    root.traverse(c => {
+      if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; }
+    });
+  }
+  return root;
+}
+
+/* =====================================================
+   layerId：每个设计对象的唯一编号（含用户成组）
+===================================================== */
+let layerSeq = 0;
+function ensureLayerId(obj) {
+  if (obj.userData.layerId === undefined) obj.userData.layerId = ++layerSeq;
+  else if (obj.userData.layerId > layerSeq) layerSeq = obj.userData.layerId;
+  return obj.userData.layerId;
+}
+
+/* =====================================================
+   元信息
+===================================================== */
+function metaForItem(item) {
+  if (item.type === 'ring' || item.type === 'oval' || item.type === 'band') {
+    return { kind: 'base', name: item.name };
+  }
+  return { kind: item.type === 'circle' ? 'bead' : 'acc', name: item.name };
+}
+function findItem(itemId) {
+  const tabs = Object.keys(CATALOG);
+  for (const t of tabs) {
+    for (const cat of CATALOG[t].categories) {
+      const f = cat.items.find(x => x.id === itemId);
+      if (f) return f;
+    }
+  }
+  return null;
+}
+
+/* =====================================================
+   手围计算：遍历可见底座，椭圆周长(拉玛努金近似)
+   取世界缩放，保证对象被成组/缩放后仍准确。
+   1 单位 = 1cm，周长单位数即厘米数。
+===================================================== */
+function recalcStatus() {
+  let wristCm = 0;
+  designRoot.traverse(o => {
+    if (o.visible === false) return;
+    const m = o.userData.meta;
+    if (!m || m.kind !== 'base' || o.userData.baseR === undefined) return;
+    const ws = o.getWorldScale(new THREE.Vector3());
+    const a = Math.abs(o.userData.baseR * ws.x);
+    const b = Math.abs(o.userData.baseR * ws.z);
+    if (a === 0 || b === 0) return;
+    const h = Math.pow(a - b, 2) / Math.pow(a + b, 2);
+    wristCm = Math.PI * (a + b) * (1 + (3 * h) / (10 + Math.sqrt(4 - 3 * h)));
+  });
+  statusWrist.textContent = '手围: ' + (wristCm > 0 ? wristCm.toFixed(1) + 'cm' : '--');
+}
+
+/* =====================================================
+   撤销 / 重做（快照 JSON）
+===================================================== */
+let undoStack = [];
+let redoStack = [];
+const MAX_HISTORY = 50;
+let suppressingHistory = false;
+
+/* ---- 序列化单个设计节点 ----
+   组合素材(流苏/吊坠)的内部零件不单独记录，恢复时按 itemId 重建；
+   用户「成组」产生的子节点带 layerId，递归保存其变换。 */
+function serializeNode(o) {
+  return {
+    layerId: o.userData.layerId,
+    itemId: o.userData.itemId ?? null,
+    meta: o.userData.meta,
+    isGroup: o.userData.meta && o.userData.meta.kind === 'group',
+    visible: o.visible,
+    pos: [o.position.x, o.position.y, o.position.z],
+    rot: [o.rotation.x, o.rotation.y, o.rotation.z],
+    scale: [o.scale.x, o.scale.y, o.scale.z],
+    children: o.children
+      .filter(c => c.userData.layerId !== undefined)
+      .map(serializeNode)
+  };
+}
+function deserializeNode(n) {
+  let obj;
+  if (n.isGroup) {
+    obj = new THREE.Group();
+  } else {
+    const item = findItem(n.itemId);
+    obj = buildFromItem(item);
+  }
+  obj.userData.meta = n.meta;
+  obj.userData.layerId = n.layerId;
+  if (n.layerId > layerSeq) layerSeq = n.layerId;
+  obj.visible = n.visible;
+  obj.position.set(n.pos[0], n.pos[1], n.pos[2]);
+  obj.rotation.set(n.rot[0], n.rot[1], n.rot[2]);
+  obj.scale.set(n.scale[0], n.scale[1], n.scale[2]);
+  n.children.forEach(c => obj.add(deserializeNode(c)));
+  return obj;
+}
+
+function snapshotState() {
+  return JSON.stringify({
+    root: designRoot.children
+      .filter(c => c.userData.layerId !== undefined)
+      .map(serializeNode)
+  });
+}
+
+// 每次「已完成」的操作后记录一次（增删/变换/排序/显隐/成组）
+function recordHistory() {
+  if (suppressingHistory) return;
+  const json = snapshotState();
+  if (undoStack.length && undoStack[undoStack.length - 1] === json) return;
+  undoStack.push(json);
+  if (undoStack.length > MAX_HISTORY) undoStack.shift();
+  redoStack = [];
+}
+function initHistory() {
+  undoStack = [snapshotState()];
+  redoStack = [];
+}
+
+function restoreState(jsonStr) {
+  suppressingHistory = true;
+  tcontrol.detach();
+  selected = null;
+  multi.clear();
+  // 清空设计根（保留灯光/地面/控制器）
+  while (designRoot.children.length) designRoot.remove(designRoot.children[0]);
+  layerSeq = 0;
+  const data = JSON.parse(jsonStr);
+  data.root.forEach(n => designRoot.add(deserializeNode(n)));
+  outline.visible = false;
+  suppressingHistory = false;
+  recalcStatus();
+  renderLayers();
+}
+
+function undo() {
+  if (undoStack.length <= 1) { showToast('没有可撤销的操作'); return; }
+  redoStack.push(undoStack.pop());
+  restoreState(undoStack[undoStack.length - 1]);
+}
+function redo() {
+  if (redoStack.length === 0) { showToast('没有可重做的操作'); return; }
+  const next = redoStack.pop();
+  undoStack.push(next);
+  restoreState(next);
+}
+
+/* =====================================================
+   选择系统
+===================================================== */
+let selected = null;               // 单选目标（TransformControls 附着）
+const multi = new Set();           // 多选集合
+let multiMode = false;
+let transformDragging = false;
+
+// 多选高亮包围盒（3/4 角线框）
+const outline = new THREE.Box3Helper(new THREE.Box3(), 0xc9a961);
+outline.visible = false;
+// outline 在 initThree() 中 scene 创建后挂入场景
+
+// 设置/取消材质自发光高亮
+function setHighlight(obj, on) {
+  obj.traverse(c => {
+    if (!c.isMesh) return;
+    const mats = Array.isArray(c.material) ? c.material : [c.material];
+    mats.forEach(m => {
+      if (on) m.emissive.set(0xc9a961), m.emissiveIntensity = 0.35;
+      else m.emissive.set(0x000000), m.emissiveIntensity = 1;
+    });
+  });
+}
+
+function refreshOutline() {
+  if (multi.size >= 2) {
+    const box = new THREE.Box3();
+    multi.forEach(o => box.expandByObject(o));
+    outline.box.copy(box);
+    outline.visible = true;
+  } else {
+    outline.visible = false;
+  }
+}
+
+function selectSingle(obj) {
+  selected = obj;
+  multi.clear();
+  if (obj) tcontrol.attach(obj); else tcontrol.detach();
+  refreshOutline();
+  renderLayers();
+}
+
+/* =====================================================
+   触屏 / 鼠标指针交互
+   - 单指在空白拖动：OrbitControls 旋转视角
+   - 双指捏合：OrbitControls 缩放视角
+   - 轻点（位移<8px 且 <400ms）：射线点选模型
+   - 拖动 TransformControls 手柄：移动/拉伸/旋转模型
+===================================================== */
+let downInfo = null;
+
+function bindPointer() {
+  const dom = renderer.domElement;
+
+  dom.addEventListener('pointerdown', e => {
+    downInfo = { x: e.clientX, y: e.clientY, t: Date.now() };
+  });
+
+  // pointerup 挂 window：OrbitControls 会捕获指针，事件仍冒泡到 window
+  window.addEventListener('pointerup', e => {
+    if (!downInfo) return;
+    const moved = Math.hypot(e.clientX - downInfo.x, e.clientY - downInfo.y);
+    const dt = Date.now() - downInfo.t;
+    downInfo = null;
+    if (moved > 8 || dt > 400) return;      // 视为拖拽视角，不是轻点
+    if (transformDragging) return;          // 刚结束模型变换
+    handleTap(e.clientX, e.clientY);
+  });
+}
+
+// 由命中的子零件向上找「可选择的设计节点」：
+// 返回 designRoot 之下最高层的带 layerId 祖先
+// （成组内点中珠子时应选中整个组合）
+function selectableOf(o) {
+  let cur = null;
+  while (o && o !== designRoot) {
+    if (o.userData.layerId !== undefined) cur = o;
+    o = o.parent;
+  }
+  return cur;
+}
+
+function pickAt(clientX, clientY) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointerNDC.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+  pointerNDC.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointerNDC, camera);
+  const hits = raycaster.intersectObjects(designRoot.children, true);
+  for (const h of hits) {
+    const top = selectableOf(h.object);
+    if (top && top.visible) return top;
+  }
+  return null;
+}
+
+function handleTap(x, y) {
+  const obj = pickAt(x, y);
+  // 吸附模式：点选其他模型时把 selected 吸附到命中点最近顶点，命中空白则退出吸附
+  if (snapMode) {
+    if (obj && obj !== selected) {
+      snapToVertex(x, y);
+    } else {
+      snapMode = false;
+      document.getElementById('btnSnap').classList.remove('on');
+      showToast('已退出吸附');
+    }
+    return;
+  }
+  if (multiMode) {
+    if (obj) {
+      if (multi.has(obj)) { multi.delete(obj); setHighlight(obj, false); }
+      else { multi.add(obj); setHighlight(obj, true); }
+    } // 多选模式下点空白不清空，避免误操作
+    refreshOutline();
+    renderLayers();
+    return;
+  }
+  selectSingle(obj);
+}
+
+/* =====================================================
+   添加 / 删除 / 复制
+===================================================== */
+function addItemObject(item) {
+  let obj;
+  if (item.type === 'custom' && item.data) {
+    // 自定义元素：从序列化数据反序列化重建
+    obj = deserializeNode(item.data);
+    obj.userData.layerId = undefined;
+    obj.userData.meta = { kind: 'custom', name: item.name };
+  } else {
+    obj = buildFromItem(item);
+    obj.userData.meta = metaForItem(item);
+  }
+  ensureLayerId(obj);
+  designRoot.add(obj);
+  selectSingle(obj);
+  recalcStatus();
+  recordHistory();
+}
+
+function deleteObject(obj) {
+  if (selected === obj) { tcontrol.detach(); selected = null; }
+  if (multi.has(obj)) { multi.delete(obj); setHighlight(obj, false); }
+  obj.parent.remove(obj);
+  refreshOutline();
+  recalcStatus();
+  renderLayers();
+  recordHistory();
+  showToast('已删除');
+}
+
+function currentTarget() {
+  return selected;
+}
+
+function duplicateSelected() {
+  const obj = currentTarget();
+  if (!obj) { showToast('请先选中模型'); return; }
+  // 通过序列化 -> 反序列化得到完全独立的副本
+  const cloned = deserializeNode(serializeNode(obj));
+  cloned.userData.layerId = undefined;
+  ensureLayerId(cloned);
+  obj.parent.add(cloned);
+  // 相对父空间偏移，避免与原物完全重叠
+  cloned.position.x += 0.45;
+  cloned.position.y += 0.25;
+  cloned.position.z += 0.45;
+  selectSingle(cloned);
+  recalcStatus();
+  recordHistory();
+  showToast('已复制');
+}
+
+/* =====================================================
+   显隐 / 图层排序（在同级设计节点之间移动）
+===================================================== */
+function designSiblings(o) {
+  return o.parent.children.filter(c => c.userData.layerId !== undefined);
+}
+function stackMove(obj, mode) {
+  const par = obj.parent;
+  const list = designSiblings(obj);
+  const i = list.indexOf(obj);
+  let j = i;
+  if (mode === 'fwd' && i < list.length - 1) j = i + 1;
+  if (mode === 'back' && i > 0) j = i - 1;
+  if (mode === 'top') j = list.length - 1;
+  if (mode === 'bottom') j = 0;
+  if (j === i) return;
+  const ai = par.children.indexOf(list[i]);
+  const bi = par.children.indexOf(list[j]);
+  par.children[ai] = list[j];
+  par.children[bi] = list[i];
+  renderLayers();
+  recordHistory();
+}
+
+function toggleVisibility(obj) {
+  const show = obj.visible === false;
+  obj.visible = show;
+  if (!show) {
+    if (selected === obj) { tcontrol.detach(); selected = null; }
+    if (multi.has(obj)) { multi.delete(obj); setHighlight(obj, false); }
+  }
+  refreshOutline();
+  recalcStatus();
+  renderLayers();
+  recordHistory();
+}
+
+/* =====================================================
+   成组 / 解组（THREE.Group）
+===================================================== */
+function groupSelected() {
+  if (multi.size < 2) {
+    showToast('请先点「多选」并点选至少两个模型');
+    return;
+  }
+  const items = [...multi];
+  const parent = items[0].parent;
+  if (items.some(o => o.parent !== parent)) {
+    showToast('请选择同一层级的模型');
+    return;
+  }
+  // 组位置取各对象包围盒中心的平均位置
+  const center = new THREE.Vector3();
+  const box = new THREE.Box3();
+  items.forEach(o => { box.setFromObject(o); center.add(box.getCenter(new THREE.Vector3())); });
+  center.multiplyScalar(1 / items.length);
+
+  const g = new THREE.Group();
+  g.position.copy(center);
+  g.userData.meta = { kind: 'group', name: '组合' };
+  ensureLayerId(g);
+  parent.add(g);
+  // attach：保持世界变换不变地挂入组
+  items.forEach(o => { multi.delete(o); setHighlight(o, false); g.attach(o); });
+  multiMode = false;
+  document.getElementById('btnMulti').classList.remove('on');
+  selectSingle(g);
+  recalcStatus();
+  recordHistory();
+  showToast('已组合');
+}
+
+function ungroupSelected() {
+  const obj = selected;
+  if (!obj || !(obj.userData.meta && obj.userData.meta.kind === 'group')) {
+    showToast('请选中一个组合');
+    return;
+  }
+  const parent = obj.parent;
+  tcontrol.detach();
+  selected = null;
+  // 把每个子节点保持世界变换地移回父级
+  [...obj.children]
+    .filter(c => c.userData.layerId !== undefined)
+    .forEach(c => parent.attach(c));
+  parent.remove(obj);
+  recalcStatus();
+  renderLayers();
+  recordHistory();
+  showToast('已解组');
+}
+
+/* =====================================================
+   初始场景：圆环底座 + 四颗珠子
+===================================================== */
+function buildInitialScene() {
+  const baseObj = buildFromItem(CATALOG.base.categories[0].items[0]);
+  baseObj.userData.meta = { kind: 'base', name: '圆环底座' };
+  ensureLayerId(baseObj);
+
+  const beads = [
+    { item: CATALOG.bead.categories[0].items[0], angle: -90 }, // 珍珠 远侧(屏幕上方)
+    { item: CATALOG.bead.categories[1].items[0], angle: 0 },   // 水晶 右侧
+    { item: CATALOG.bead.categories[2].items[0], angle: 90 },  // 金属 近侧(屏幕下方)
+    { item: CATALOG.bead.categories[3].items[0], angle: 180 }  // 玉石 左侧
+  ];
+
+  const all = [baseObj];
+  beads.forEach(b => {
+    const rad = b.angle * Math.PI / 180;
+    const bead = buildFromItem(b.item);
+    bead.userData.meta = metaForItem(b.item);
+    bead.position.set(RING_R * Math.cos(rad), 0, RING_R * Math.sin(rad));
+    ensureLayerId(bead);
+    all.push(bead);
+  });
+
+  suppressingHistory = true;
+  all.forEach(o => designRoot.add(o));
+  suppressingHistory = false;
+  recalcStatus();
+  renderLayers();
+  initHistory();
+}
+
+/* =====================================================
+   暂存草稿 / 读取草稿（localStorage 持久化）
+===================================================== */
+function saveDraft() {
+  localStorage.setItem(STORAGE_KEY, snapshotState());
+  showToast('草稿已保存');
+}
+
+function clearDesign() {
+  tcontrol.detach();
+  selected = null;
+  multi.clear();
+  while (designRoot.children.length) designRoot.remove(designRoot.children[0]);
+  outline.visible = false;
+}
+
+function loadDraft() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) { buildInitialScene(); return; }
+  try {
+    clearDesign();
+    layerSeq = 0;
+    const data = JSON.parse(raw);
+    data.root.forEach(n => designRoot.add(deserializeNode(n)));
+    recalcStatus();
+    renderLayers();
+    initHistory();
+  } catch (e) {
+    clearDesign();
+    buildInitialScene();
+  }
+}
+
+function resetToInitial() {
+  clearDesign();
+  localStorage.removeItem(STORAGE_KEY);
+  buildInitialScene();
+}
+
+/* =====================================================
+   自定义元素：把当前选中对象存为可复用素材
+   存到 localStorage（CUSTOM_KEY）+ CATALOG.custom
+===================================================== */
+function saveCurrentAsElement() {
+  // 收集要保存的目标：多选集合优先，其次单选
+  let targets;
+  if (multi.size >= 1) {
+    targets = [...multi];
+  } else if (selected) {
+    targets = [selected];
+  } else {
+    showToast('请先选中一个或多个模型'); return;
+  }
+
+  const name = '自定义 ' + Date.now().toString(36).slice(-4).toUpperCase();
+  let data;
+  if (targets.length === 1) {
+    data = serializeNode(targets[0]);
+  } else {
+    // 多个对象打包成一个组合节点，加载时按组整体重建
+    data = {
+      layerId: 0,
+      itemId: null,
+      meta: { kind: 'group', name: name },
+      isGroup: true,
+      visible: true,
+      pos: [0, 0, 0],
+      rot: [0, 0, 0],
+      scale: [1, 1, 1],
+      children: targets.map(o => serializeNode(o))
+    };
+  }
+  data.name = name;
+  data.isCustom = true;
+
+  // 重新编号，避免保存后立即添加时与场景现有对象 layerId 冲突
+  let nextId = layerSeq;
+  (function relayer(node) {
+    if (node.layerId !== undefined && node.layerId !== null) node.layerId = ++nextId;
+    (node.children || []).forEach(relayer);
+  })(data);
+
+  // 持久化到 localStorage
+  const list = JSON.parse(localStorage.getItem(CUSTOM_KEY) || '[]');
+  list.push(data);
+  localStorage.setItem(CUSTOM_KEY, JSON.stringify(list));
+  // 同步到 CATALOG.custom
+  CATALOG.custom.categories[0].items.push({
+    id: 'custom_' + data.layerId,
+    name: name,
+    spec: targets.length > 1 ? '组合×' + targets.length : '自定义',
+    color: '#c9a961',
+    type: 'custom',
+    data: data
+  });
+  // 退出多选模式
+  if (multi.size) {
+    multiMode = false;
+    const b = document.getElementById('btnMulti');
+    if (b) b.classList.remove('on');
+    [...targets].forEach(o => setHighlight(o, false));
+    multi.clear();
+    refreshOutline();
+  }
+  showToast('已存为自定义元素');
+  if (currentTab === 'custom') { renderCats(); renderGrid(); }
+}
+
+function bootCustom() {
+  try {
+    const list = JSON.parse(localStorage.getItem(CUSTOM_KEY) || '[]');
+    CATALOG.custom.categories[0].items = list.map(d => ({
+      id: 'custom_' + d.layerId,
+      name: d.name || '自定义',
+      spec: '自定义',
+      color: '#c9a961',
+      type: 'custom',
+      data: d
+    }));
+  } catch (e) {
+    CATALOG.custom.categories[0].items = [];
+  }
+}
+
+// 启动时过滤掉被删除的自带元素
+function bootHidden() {
+  try {
+    const hidden = JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]');
+    if (!Array.isArray(hidden) || !hidden.length) return;
+    hidden.forEach(id => removeBuiltinItem(id));
+  } catch (e) {}
+}
+
+// 从 CATALOG 中移除某个自带元素（用于隐藏持久化）
+function removeBuiltinItem(id) {
+  for (const t of Object.keys(CATALOG)) {
+    if (t === 'custom') continue; // 自定义元素单独处理
+    for (const cat of CATALOG[t].categories) {
+      const idx = cat.items.findIndex(x => x.id === id);
+      if (idx >= 0) { cat.items.splice(idx, 1); return true; }
+    }
+  }
+  return false;
+}
+
+// 删除素材卡片：自定义元素永久删除，自带元素隐藏并持久化
+function deleteElement(id) {
+  for (const t of Object.keys(CATALOG)) {
+    for (const cat of CATALOG[t].categories) {
+      const idx = cat.items.findIndex(x => x.id === id);
+      if (idx < 0) continue;
+      const item = cat.items[idx];
+      if (item.type === 'custom') {
+        // 自定义元素：从 localStorage 永久移除
+        const list = JSON.parse(localStorage.getItem(CUSTOM_KEY) || '[]');
+        localStorage.setItem(CUSTOM_KEY, JSON.stringify(list.filter(d => ('custom_' + d.layerId) !== id)));
+      } else {
+        // 自带元素：加入隐藏列表持久化
+        const hidden = JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]');
+        if (!hidden.includes(id)) {
+          hidden.push(id);
+          localStorage.setItem(HIDDEN_KEY, JSON.stringify(hidden));
+        }
+      }
+      cat.items.splice(idx, 1);
+      renderCats();
+      renderGrid();
+      showToast('已删除 ' + item.name);
+      return;
+    }
+  }
+  showToast('未找到该元素');
+}
+
+// 恢复所有被隐藏的自带元素
+function restoreHidden() {
+  localStorage.removeItem(HIDDEN_KEY);
+  location.reload();
+}
+
+/* =====================================================
+   视图工具：顶视图 / 顶点吸附 / 贴底座 / 碰撞检测
+===================================================== */
+let viewMode = 0;          // 0=默认 1=顶视 2=仰视（看底座底面）
+let snapMode = false;
+let dragStartPos = null;   // TransformControls 拖动前位置（用于碰撞回退）
+
+// ---- 视角切换：默认 → 顶视 → 仰视 → 默认 ----
+function toggleTopView() {
+  viewMode = (viewMode + 1) % 3;
+  const btn = document.getElementById('btnTopView');
+  btn.classList.toggle('on', viewMode !== 0);
+  btn.textContent = viewMode === 2 ? '⊥ 仰视' : '⊤ 顶视';
+  if (viewMode === 0) {
+    camera.position.set(0.8, 3.8, 5.6);
+    orbit.target.set(0, 0.1, 0);
+  } else if (viewMode === 1) {
+    camera.position.set(0, 8, 0.001);
+    orbit.target.set(0, 0, 0);
+  } else {
+    camera.position.set(0, -3, 0.001);   // 相机到地面下方，往上看底座底面
+    orbit.target.set(0, 0, 0);
+  }
+  orbit.update();
+}
+
+// ---- 顶点吸附：开启后点击其他模型，把选中对象吸附到命中点最近顶点 ----
+function toggleSnapMode() {
+  if (!selected) { showToast('请先选中模型'); return; }
+  snapMode = !snapMode;
+  document.getElementById('btnSnap').classList.toggle('on', snapMode);
+  // 进入吸附模式时取消多选，避免冲突
+  if (snapMode) {
+    if (multiMode) {
+      multiMode = false;
+      document.getElementById('btnMulti').classList.remove('on');
+      [...multi].forEach(o => setHighlight(o, false));
+      multi.clear();
+      refreshOutline();
+    }
+    showToast('点选其他模型以吸附');
+  } else {
+    showToast('已退出吸附');
+  }
+}
+
+// 把 selected 吸附到屏幕坐标 (clientX, clientY) 命中的最近顶点
+function snapToVertex(clientX, clientY) {
+  if (!selected) return;
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointerNDC.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+  pointerNDC.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointerNDC, camera);
+  // 排除 selected 自己，只与其他设计对象求交
+  const targets = designRoot.children.filter(o => o !== selected && o.userData && o.userData.layerId !== undefined && o.visible);
+  const meshes = [];
+  targets.forEach(o => o.traverse(c => { if (c.isMesh) meshes.push(c); }));
+  const hits = raycaster.intersectObjects(meshes, false);
+  if (!hits.length) { showToast('未命中可吸附顶点'); return; }
+  const hit = hits[0];
+  const mesh = hit.object;
+  const pos = mesh.geometry.attributes.position;
+  if (!pos) { showToast('未命中可吸附顶点'); return; }
+  const localP = mesh.worldToLocal(hit.point.clone());
+  let bestIdx = -1, bestDist = Infinity;
+  for (let i = 0; i < pos.count; i++) {
+    const dx = pos.getX(i) - localP.x;
+    const dy = pos.getY(i) - localP.y;
+    const dz = pos.getZ(i) - localP.z;
+    const d = dx*dx + dy*dy + dz*dz;
+    if (d < bestDist) { bestDist = d; bestIdx = i; }
+  }
+  if (bestIdx < 0) { showToast('未命中可吸附顶点'); return; }
+  const worldV = new THREE.Vector3(pos.getX(bestIdx), pos.getY(bestIdx), pos.getZ(bestIdx));
+  mesh.localToWorld(worldV); // designRoot 无变换，世界坐标 = 局部坐标
+  selected.position.copy(worldV);
+  recalcStatus();
+  renderLayers();
+  recordHistory();
+  showToast('已吸附到顶点');
+}
+
+// ---- 贴底座：把选中对象 Y 设为「底部贴地」 ----
+function snapSelectedToBase() {
+  if (!selected) { showToast('请先选中模型'); return; }
+  const box = new THREE.Box3().setFromObject(selected);
+  const halfH = (box.max.y - box.min.y) / 2;
+  selected.position.y = GROUND_Y + halfH;
+  recalcStatus();
+  renderLayers();
+  recordHistory();
+  showToast('已贴到底座');
+}
+
+// ---- 均布到圆环 12 顶点：选中对象为模板，复制 11 份到圆环上等距 12 个位置 ----
+function distributeSelectedAroundRing() {
+  const tpl = selected;
+  if (!tpl) { showToast('请先选中要分布的对象'); return; }
+  // 不对底座自身分布
+  if (tpl.userData.meta && tpl.userData.meta.kind === 'base') {
+    showToast('不能把底座自身分布'); return;
+  }
+  // 半径：场景中圆环底座的 baseR，否则用 RING_R
+  let ringR = RING_R;
+  designRoot.children.forEach(o => {
+    if (o.userData.baseR) ringR = o.userData.baseR;
+  });
+  const y = tpl.position.y; // 保持当前高度
+  const count = 12;
+  // 先把模板放到第一个顶点（角度 0）
+  tpl.position.set(ringR * Math.cos(0), y, ringR * Math.sin(0));
+  // 复制 11 份放到其余 11 个顶点
+  for (let i = 1; i < count; i++) {
+    const rad = (i / count) * Math.PI * 2;
+    const cloned = deserializeNode(serializeNode(tpl));
+    cloned.userData.layerId = undefined;
+    ensureLayerId(cloned);
+    cloned.position.set(ringR * Math.cos(rad), y, ringR * Math.sin(rad));
+    // 让复本朝向圆心
+    cloned.rotation.y = -rad + Math.PI / 2;
+    designRoot.add(cloned);
+  }
+  selectSingle(tpl);
+  recalcStatus();
+  renderLayers();
+  recordHistory();
+  showToast('已均布到圆环 12 顶点');
+}
+
+// ---- 调色板：把颜色应用到选中对象所有 mesh 的 material.color ----
+const COLOR_PRESETS = [
+  '#c9a961', '#c0c0c8', '#b87333', '#e6b4a8', '#d97b7b', '#7fb9ea',
+  '#7fbf8f', '#c79be0', '#f5f1ea', '#e0c078', '#2a2a30', '#1a1a1e'
+];
+function buildColorGrid() {
+  const grid = document.getElementById('colorGrid');
+  grid.innerHTML = COLOR_PRESETS.map(hex =>
+    '<button class="cp-swatch" data-hex="' + hex + '" style="background:' + hex + '"></button>'
+  ).join('');
+}
+function applyColorToSelected(hex) {
+  if (!selected) { showToast('请先选中模型'); return; }
+  const color = new THREE.Color(hex);
+  // 用 Set 去重材质引用：避免共享材质时重复设置
+  const uniqueMats = new Set();
+  selected.traverse(c => {
+    if (!c.isMesh) return;
+    const mats = Array.isArray(c.material) ? c.material : [c.material];
+    mats.forEach(m => uniqueMats.add(m));
+  });
+  let count = 0;
+  uniqueMats.forEach(m => {
+    if (m.color) m.color = color.clone();
+    m.needsUpdate = true;
+    count++;
+  });
+  recordHistory();
+  showToast('已应用到 ' + count + ' 个材质');
+}
+document.addEventListener('DOMContentLoaded', buildColorGrid);
+document.getElementById('btnColor').addEventListener('click', () => {
+  if (!selected) { showToast('请先选中模型'); return; }
+  const panel = document.getElementById('colorPanel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+});
+document.getElementById('colorClose').addEventListener('click', () => {
+  document.getElementById('colorPanel').style.display = 'none';
+});
+document.getElementById('colorGrid').addEventListener('click', e => {
+  const sw = e.target.closest('.cp-swatch');
+  if (!sw) return;
+  const hex = sw.dataset.hex;
+  applyColorToSelected(hex);
+  document.getElementById('colorPicker').value = hex;
+  document.getElementById('colorHex').textContent = hex;
+});
+document.getElementById('colorPicker').addEventListener('input', e => {
+  const hex = e.target.value;
+  document.getElementById('colorHex').textContent = hex;
+  applyColorToSelected(hex);
+});
+
+// ---- 碰撞检测：给所有可见设计对象（排除 selected）生成世界包围盒 ----
+function designColliderBoxes() {
+  const boxes = [];
+  designRoot.children.forEach(o => {
+    if (o.userData && o.userData.layerId !== undefined && o !== selected && o.visible) {
+      boxes.push({ obj: o, box: new THREE.Box3().setFromObject(o) });
+    }
+  });
+  return boxes;
+}
+
+// 检测对象 a 是否与其他对象包围盒相交（任意一个相交即返回 true）
+function collidesWith(a) {
+  const aBox = new THREE.Box3().setFromObject(a);
+  const others = designColliderBoxes();
+  for (const o of others) {
+    if (aBox.intersectsBox(o.box)) return true;
+  }
+  return false;
+}
+
+/* =====================================================
+   导出 PNG（2x 分辨率）
+===================================================== */
+function dataURLtoBlob(dataURL) {
+  const parts = dataURL.split(',');
+  const mime = parts[0].match(/:(.*?);/)[1];
+  const bstr = atob(parts[1]);
+  let n = bstr.length;
+  const u8 = new Uint8Array(n);
+  while (n--) u8[n] = bstr.charCodeAt(n);
+  return new Blob([u8], { type: mime });
+}
+
+function exportPNG() {
+  const w = viewEl.clientWidth;
+  const h = viewEl.clientHeight;
+  const hadObj = tcontrol.object;
+  // 1) 导出前取消选中，避免操纵杆进入图片
+  tcontrol.detach();
+  outline.visible = false;
+  // 2) 临时白色背景
+  const oldBg = scene.background;
+  scene.background = new THREE.Color(0xffffff);
+  // 3) 画布放大到 2x（updateStyle=false 不改变 CSS 尺寸）
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w * 2, h * 2, false);
+  renderer.render(scene, camera);
+  const url = renderer.domElement.toDataURL('image/png');
+  // 4) 还原尺寸 / 背景 / 选中
+  renderer.setSize(w, h, false);
+  scene.background = oldBg;
+  if (hadObj) tcontrol.attach(hadObj);
+  refreshOutline();
+  return url;
+}
+
+function saveImage() {
+  const dataURL = exportPNG();
+  // 移动端下载：隐藏 <a> + download 属性触发浏览器下载/保存
+  const a = document.createElement('a');
+  a.href = dataURL;
+  a.download = '我的饰品设计.png';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+
+  // 弹窗展示图片预览
+  modalImg.src = dataURL;
+  modalImg.style.display = 'block';
+  modalText.style.display = 'none';
+  modal.classList.add('show');
+  showToast('图片已生成，请在下载中查看');
+}
+
+function completeDesign() {
+  // 完成设计：保存图片 + 暂存草稿，随后重置（无支付/下单）
+  saveImage();
+  saveDraft();
+  showToast('已保存');
+  setTimeout(resetToInitial, 900);
+}
+
+/* =====================================================
+   素材面板渲染（卡片预览仍用轻量内联 SVG）
+===================================================== */
+let currentTab = 'base';
+let currentCat = 0;
+
+function svgPreview(item) {
+  const s = 48, c = item.color;
+  switch (item.type) {
+    case 'ring':
+    case 'oval':
+    case 'band':
+      return '<svg viewBox="0 0 ' + s + ' ' + s + '"><circle cx="24" cy="24" r="18" fill="none" stroke="' + c + '" stroke-width="6"/></svg>';
+    case 'circle':
+      return '<svg viewBox="0 0 ' + s + ' ' + s + '"><circle cx="24" cy="24" r="16" fill="' + c + '" stroke="rgba(0,0,0,0.08)"/><circle cx="19" cy="19" r="4" fill="rgba(255,255,255,0.55)"/></svg>';
+    case 'tear':
+      return '<svg viewBox="0 0 ' + s + ' ' + s + '"><path d="M24 8 C32 22 32 34 24 34 C16 34 16 22 24 8 Z" fill="' + c + '"/></svg>';
+    case 'heart':
+      return '<svg viewBox="0 0 ' + s + ' ' + s + '"><path d="M24 34 C14 26 8 20 8 15 C8 11 11 8 15 8 C18 8 21 10 24 13 C27 10 30 8 33 8 C37 8 40 11 40 15 C40 20 34 26 24 34 Z" fill="' + c + '"/></svg>';
+    case 'tassel':
+      return '<svg viewBox="0 0 ' + s + ' ' + s + '"><circle cx="24" cy="10" r="5" fill="' + c + '"/><path d="M21 14 L24 42 L27 14 Z" fill="' + c + '"/></svg>';
+    case 'chain':
+      return '<svg viewBox="0 0 ' + s + ' ' + s + '"><g fill="none" stroke="' + c + '" stroke-width="4"><circle cx="12" cy="24" r="5"/><circle cx="24" cy="24" r="5"/><circle cx="36" cy="24" r="5"/></g></svg>';
+    case 'tetra':
+      return '<svg viewBox="0 0 ' + s + ' ' + s + '"><polygon points="24,8 40,38 8,38" fill="' + c + '"/><polygon points="24,8 24,38 40,38" fill="rgba(0,0,0,0.18)"/></svg>';
+    case 'star5':
+      return '<svg viewBox="0 0 ' + s + ' ' + s + '"><path d="M24 6 L29 18 L42 19 L32 28 L35 41 L24 34 L13 41 L16 28 L6 19 L19 18 Z" fill="' + c + '"/></svg>';
+    case 'cone4':
+      return '<svg viewBox="0 0 ' + s + ' ' + s + '"><polygon points="24,8 40,38 8,38" fill="' + c + '"/><polygon points="24,8 24,38 40,38" fill="rgba(0,0,0,0.18)"/><rect x="8" y="38" width="32" height="2" fill="' + c + '"/></svg>';
+    case 'cube':
+      return '<svg viewBox="0 0 ' + s + ' ' + s + '"><polygon points="14,14 34,14 40,20 20,20" fill="rgba(0,0,0,0.2)"/><polygon points="14,14 20,20 20,38 14,32" fill="rgba(0,0,0,0.1)"/><polygon points="20,20 40,20 40,38 20,38" fill="' + c + '"/></svg>';
+    case 'cylinder':
+      return '<svg viewBox="0 0 ' + s + ' ' + s + '"><rect x="10" y="12" width="28" height="24" rx="2" fill="' + c + '"/><ellipse cx="24" cy="12" rx="14" ry="4" fill="rgba(255,255,255,0.25)"/><ellipse cx="24" cy="36" rx="14" ry="4" fill="rgba(0,0,0,0.15)"/></svg>';
+    case 'disc':
+      return '<svg viewBox="0 0 ' + s + ' ' + s + '"><ellipse cx="24" cy="26" rx="18" ry="12" fill="' + c + '"/><ellipse cx="24" cy="26" rx="18" ry="5" fill="rgba(255,255,255,0.28)"/></svg>';
+    case 'capsule':
+      return '<svg viewBox="0 0 ' + s + ' ' + s + '"><rect x="14" y="10" width="20" height="28" rx="10" fill="' + c + '"/><ellipse cx="24" cy="10" rx="10" ry="4" fill="rgba(255,255,255,0.25)"/></svg>';
+    case 'octa':
+      return '<svg viewBox="0 0 ' + s + ' ' + s + '"><polygon points="24,6 40,24 24,42 8,24" fill="' + c + '"/><polygon points="24,6 24,42 40,24" fill="rgba(0,0,0,0.2)"/></svg>';
+    case 'dodeca':
+      return '<svg viewBox="0 0 ' + s + ' ' + s + '"><polygon points="24,8 34,15 32,28 16,28 14,15" fill="' + c + '"/><polygon points="24,8 32,28 16,28" fill="rgba(0,0,0,0.18)"/><polygon points="24,8 34,15 38,24 32,28" fill="rgba(255,255,255,0.12)"/></svg>';
+    case 'bicone':
+      return '<svg viewBox="0 0 ' + s + ' ' + s + '"><polygon points="24,6 40,24 24,42 8,24" fill="' + c + '"/><line x1="8" y1="24" x2="40" y2="24" stroke="rgba(0,0,0,0.15)" stroke-width="1"/></svg>';
+    case 'tube':
+      return '<svg viewBox="0 0 ' + s + ' ' + s + '"><rect x="11" y="8" width="26" height="32" rx="4" fill="' + c + '"/><ellipse cx="24" cy="8" rx="13" ry="4" fill="rgba(255,255,255,0.25)"/><ellipse cx="24" cy="40" rx="13" ry="4" fill="rgba(0,0,0,0.15)"/></svg>';
+    case 'hexprism':
+      return '<svg viewBox="0 0 ' + s + ' ' + s + '"><polygon points="24,7 37,14 37,34 24,41 11,34 11,14" fill="' + c + '"/><polygon points="24,7 37,14 24,21 11,14" fill="rgba(255,255,255,0.22)"/><polygon points="24,27 37,34 24,41 11,34" fill="rgba(0,0,0,0.15)"/></svg>';
+    case 'cap':
+      return '<svg viewBox="0 0 ' + s + ' ' + s + '"><path d="M6 32 A18 18 0 0 1 42 32 Z" fill="' + c + '"/><rect x="20" y="29" width="24" height="6" rx="2" fill="' + c + '"/></svg>';
+    case 'beret':
+      return '<svg viewBox="0 0 ' + s + ' ' + s + '"><ellipse cx="24" cy="28" rx="18" ry="7" fill="' + c + '"/><circle cx="24" cy="20" r="3" fill="' + c + '"/></svg>';
+    case 'bucket':
+      return '<svg viewBox="0 0 ' + s + ' ' + s + '"><path d="M14 12 L34 12 L30 34 L18 34 Z" fill="' + c + '"/><ellipse cx="24" cy="34" rx="14" ry="3" fill="none" stroke="' + c + '" stroke-width="3"/></svg>';
+    case 'custom':
+      return '<svg viewBox="0 0 ' + s + ' ' + s + '"><path d="M24 10 L28 20 L38 22 L30 30 L32 40 L24 35 L16 40 L18 30 L10 22 L20 20 Z" fill="' + c + '"/></svg>';
+    default:
+      return '<svg viewBox="0 0 ' + s + ' ' + s + '"><circle cx="24" cy="24" r="16" fill="' + c + '"/></svg>';
+  }
+}
+
+function cardHTML(item) {
+  return '<div class="card" data-id="' + item.id + '">' +
+    '<button class="card-del" data-del="' + item.id + '" title="删除">×</button>' +
+    '<div class="preview">' + svgPreview(item) + '</div>' +
+    '<div class="c-name">' + item.name + '</div>' +
+    '<div class="c-spec">' + item.spec + '</div>' +
+  '</div>';
+}
+
+function renderCats() {
+  let html = CATALOG[currentTab].categories.map((c, i) =>
+    '<button class="cat' + (i === currentCat ? ' active' : '') + '" data-i="' + i + '">' + c.name + '</button>'
+  ).join('');
+  // 「自定义」tab 底部提供「恢复自带元素」入口
+  if (currentTab === 'custom') {
+    html += '<button class="cat cat-restore" data-role="restore" title="恢复被删除的自带元素">↺ 恢复</button>';
+  }
+  catCol.innerHTML = html;
+}
+
+function renderGrid() {
+  grid.innerHTML = CATALOG[currentTab].categories[currentCat].items.map(cardHTML).join('');
+}
+
+/* =====================================================
+   图层面板
+===================================================== */
+function findObjectByLayerId(id) {
+  let found = null;
+  designRoot.traverse(o => {
+    if (!found && o.userData.layerId === id) found = o;
+  });
+  return found;
+}
+
+function renderLayers() {
+  // 仅展示设计根的直接子节点（组合占一行，同 2D 版逻辑）
+  const objs = designRoot.children
+    .filter(o => o.userData.layerId !== undefined)
+    .slice()
+    .reverse(); // 置顶（最前）排在最上面
+  let html = '<div class="layer-toolbar">' +
+    '<button class="l-tool" data-tool="group">成组</button>' +
+    '<button class="l-tool" data-tool="ungroup">解组</button>' +
+    '<span class="layer-hint">多选模式点选后成组</span>' +
+    '</div>';
+  if (objs.length === 0) {
+    html += '<div class="layer-empty">场景中暂无模型</div>';
+  } else {
+    html += objs.map(o => {
+      const m = o.userData.meta;
+      const isGroup = m && m.kind === 'group';
+      // 色块：组合用灰色，其它用素材颜色
+      let swatch = '#9a9aa2';
+      if (!isGroup) {
+        const item = findItem(o.userData.itemId);
+        if (item) swatch = item.color;
+      }
+      const hidden = o.visible === false;
+      const isActive = selected === o || multi.has(o);
+      return '<div class="layer' + (isActive ? ' active' : '') + (hidden ? ' hidden' : '') + '" data-id="' + o.userData.layerId + '">' +
+        '<span class="l-swatch" style="background:' + swatch + '"></span>' +
+        '<span class="l-name">' + (m ? m.name : '模型') + '</span>' +
+        '<button class="l-btn" data-act="eye">' + (hidden ? '🚫' : '👁') + '</button>' +
+        '<button class="l-btn" data-act="up">↑</button>' +
+        '<button class="l-btn" data-act="down">↓</button>' +
+        '<button class="l-btn" data-act="top">⏫</button>' +
+        '<button class="l-btn" data-act="bottom">⏬</button>' +
+        '<button class="l-btn danger" data-act="del">✕</button>' +
+      '</div>';
+    }).join('');
+  }
+  layerList.innerHTML = html;
+}
+
+/* =====================================================
+   Toast 与弹窗
+===================================================== */
+let toastTimer;
+function showToast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 1600);
+}
+
+document.getElementById('modalClose').addEventListener('click', () => {
+  modal.classList.remove('show');
+});
+modal.addEventListener('click', e => {
+  if (e.target === modal) modal.classList.remove('show');
+});
+
+/* =====================================================
+   事件绑定（按钮 / Tab / 面板）
+===================================================== */
+document.getElementById('btnDelete').addEventListener('click', () => {
+  const obj = selected || (multi.size === 1 ? [...multi][0] : null);
+  if (obj) deleteObject(obj);
+  else showToast('请先选中模型');
+});
+document.getElementById('btnDraft').addEventListener('click', saveDraft);
+document.getElementById('btnSave').addEventListener('click', saveImage);
+document.getElementById('btnFinish').addEventListener('click', completeDesign);
+document.getElementById('btnDuplicate').addEventListener('click', duplicateSelected);
+document.getElementById('btnCustom').addEventListener('click', saveCurrentAsElement);
+document.getElementById('btnBase').addEventListener('click', snapSelectedToBase);
+document.getElementById('btnRing12').addEventListener('click', distributeSelectedAroundRing);
+document.getElementById('btnUndo').addEventListener('click', undo);
+document.getElementById('btnRedo').addEventListener('click', redo);
+
+/* =====================================================
+   actions 拖拽条：拖动小条横向滚动按钮行
+===================================================== */
+(function setupActionsDragbar() {
+  const row = document.getElementById('actionsRow');
+  const track = document.getElementById('actionsTrack');
+  const bar = document.getElementById('actionsDragbar');
+  const thumb = document.getElementById('actionsDragbarThumb');
+  if (!row || !track || !bar || !thumb) return;
+
+  function updateThumb() {
+    const rowW = row.clientWidth;
+    const trackW = track.scrollWidth;
+    const scrollMax = Math.max(1, trackW - rowW);
+    if (scrollMax <= 1) { thumb.style.width = '0'; thumb.style.marginLeft = '0'; return; }
+    const ratio = row.scrollLeft / scrollMax;
+    const barW = bar.clientWidth - 24; // padding
+    const thumbW = Math.max(40, barW * (rowW / trackW));
+    const maxLeft = barW - thumbW;
+    thumb.style.width = thumbW + 'px';
+    thumb.style.marginLeft = (ratio * maxLeft) + 'px';
+  }
+
+  row.addEventListener('scroll', updateThumb);
+  window.addEventListener('resize', updateThumb);
+  setTimeout(updateThumb, 100);
+
+  // 拖动 thumb 滚动 row
+  let dragging = false, startX = 0, startScroll = 0;
+  function down(e) {
+    dragging = true;
+    thumb.classList.add('dragging');
+    startX = (e.touches ? e.touches[0].clientX : e.clientX);
+    startScroll = row.scrollLeft;
+    e.preventDefault();
+  }
+  function move(e) {
+    if (!dragging) return;
+    const x = (e.touches ? e.touches[0].clientX : e.clientX);
+    const trackW = track.scrollWidth;
+    const rowW = row.clientWidth;
+    const scrollMax = Math.max(1, trackW - rowW);
+    const barW = bar.clientWidth - 24;
+    const thumbW = Math.max(40, barW * (rowW / trackW));
+    const maxLeft = Math.max(1, barW - thumbW);
+    const dx = x - startX;
+    row.scrollLeft = startScroll + (dx / maxLeft) * scrollMax;
+  }
+  function up() { dragging = false; thumb.classList.remove('dragging'); }
+  thumb.addEventListener('mousedown', down);
+  window.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', up);
+  thumb.addEventListener('touchstart', down, { passive: false });
+  window.addEventListener('touchmove', move, { passive: false });
+  window.addEventListener('touchend', up);
+})();
+
+/* =====================================================
+   材质库：6 种预置纹理（启动时生成，应用时直接取用）
+===================================================== */
+const aiModal = document.getElementById('aiModal');
+const aiStyle = document.getElementById('aiStyle');
+const aiResult = document.getElementById('aiResult');
+const aiStatus = document.getElementById('aiStatus');
+
+document.getElementById('btnAi').addEventListener('click', () => {
+  aiResult.style.display = 'none';
+  aiStatus.style.display = 'block';
+  aiStatus.textContent = selected
+    ? '当前已选中对象，选材质后点「应用材质」'
+    : '⚠ 请先在 3D 视图里点选一个对象，再点「应用材质」';
+  aiModal.classList.add('show');
+});
+document.getElementById('aiClose').addEventListener('click', () => aiModal.classList.remove('show'));
+aiModal.addEventListener('click', e => { if (e.target === aiModal) aiModal.classList.remove('show'); });
+
+// ===== 预置材质库（启动时预生成 6 张纹理，应用时直接取用，无网络/无动态渲染） =====
+// 材质配置：label 用于提示，roughness/metalness 决定表面质感
+const MATERIAL_STYLES = {
+  marble:    { label: '大理石', roughness: 0.45, metalness: 0.05 },
+  matteGold: { label: '磨砂金', roughness: 0.50, metalness: 0.40 },
+  wood:      { label: '木纹',   roughness: 0.60, metalness: 0.00 },
+  enamel:    { label: '珐琅彩', roughness: 0.35, metalness: 0.10 },
+  sapphire:  { label: '蓝宝石', roughness: 0.22, metalness: 0.15 },
+  jade:      { label: '翡翠',   roughness: 0.28, metalness: 0.05 }
+};
+
+function makeCanvas(drawFn) {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 256;
+  drawFn(c.getContext('2d'));
+  return c;
+}
+function toTexture(canvas) {
+  const t = new THREE.CanvasTexture(canvas);
+  t.wrapS = THREE.RepeatWrapping;
+  t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.userData.isAiTexture = true;
+  t.needsUpdate = true;
+  return t;
+}
+
+// 各材质绘制：以柔和渐变 + 模糊为主，避免硬边线条（消除「布线」观感）
+function drawMarble(ctx) {
+  const bg = ctx.createRadialGradient(128, 128, 40, 128, 128, 200);
+  bg.addColorStop(0, '#ffffff');
+  bg.addColorStop(1, '#e8e2d8');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, 256, 256);
+  ctx.filter = 'blur(2px)';
+  for (let i = 0; i < 8; i++) {
+    ctx.strokeStyle = 'rgba(120,120,130,' + (0.12 + Math.random() * 0.18) + ')';
+    ctx.lineWidth = 1.5 + Math.random() * 3;
+    ctx.beginPath();
+    const sy = Math.random() * 256;
+    const amp = 8 + Math.random() * 16;
+    const fr = 0.02 + Math.random() * 0.03;
+    const ph = Math.random() * 6.28;
+    for (let x = 0; x <= 256; x += 2) {
+      const y = sy + Math.sin(x * fr + ph) * amp;
+      if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+  ctx.filter = 'none';
+}
+
+function drawMatteGold(ctx) {
+  const g = ctx.createLinearGradient(0, 0, 256, 256);
+  g.addColorStop(0, '#e6c878'); g.addColorStop(0.5, '#c9a961'); g.addColorStop(1, '#a8894a');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 256, 256);
+  ctx.filter = 'blur(2px)';
+  for (let i = 0; i < 40; i++) {
+    ctx.fillStyle = 'rgba(255,235,180,' + (0.05 + Math.random() * 0.12) + ')';
+    ctx.beginPath();
+    ctx.ellipse(Math.random() * 256, Math.random() * 256, 8 + Math.random() * 30, 3 + Math.random() * 12, Math.random() * 3, 0, 6.28);
+    ctx.fill();
+  }
+  ctx.filter = 'none';
+}
+
+function drawWood(ctx) {
+  const g = ctx.createLinearGradient(0, 0, 0, 256);
+  g.addColorStop(0, '#9a6a3a'); g.addColorStop(0.5, '#8b5a30'); g.addColorStop(1, '#6e4220');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 256, 256);
+  ctx.filter = 'blur(2px)';
+  for (let r = 30; r < 230; r += 16) {
+    ctx.strokeStyle = 'rgba(45,25,12,' + (0.4 + Math.random() * 0.3) + ')';
+    ctx.lineWidth = 2 + Math.random() * 3;
+    ctx.beginPath();
+    ctx.ellipse(128 + (Math.random() - 0.5) * 30, 128 + (Math.random() - 0.5) * 30, r, r * 0.88, Math.random() * 0.4, 0, 6.28);
+    ctx.stroke();
+  }
+  ctx.filter = 'none';
+}
+
+function drawEnamel(ctx) {
+  ctx.fillStyle = '#efe6da'; ctx.fillRect(0, 0, 256, 256);
+  const cols = ['#d97b7b', '#7fb9ea', '#7fbf8f', '#e0c078', '#c79be0', '#f5a4d0'];
+  ctx.filter = 'blur(3px)';
+  for (let i = 0; i < 60; i++) {
+    const x = Math.random() * 256, y = Math.random() * 256, r = 8 + Math.random() * 22;
+    const c = cols[(Math.random() * cols.length) | 0];
+    const gr = ctx.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, c); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = gr;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 6.28); ctx.fill();
+  }
+  ctx.filter = 'none';
+}
+
+function drawSapphire(ctx) {
+  const g = ctx.createRadialGradient(128, 128, 20, 128, 128, 200);
+  g.addColorStop(0, '#4a76c8'); g.addColorStop(0.5, '#24458f'); g.addColorStop(1, '#0d1c45');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 256, 256);
+  ctx.filter = 'blur(3px)';
+  for (let i = 0; i < 30; i++) {
+    const x = Math.random() * 256, y = Math.random() * 256, r = 6 + Math.random() * 20;
+    const gr = ctx.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, 'rgba(190,215,255,0.5)'); gr.addColorStop(1, 'rgba(190,215,255,0)');
+    ctx.fillStyle = gr;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 6.28); ctx.fill();
+  }
+  ctx.filter = 'none';
+}
+
+function drawJade(ctx) {
+  const g = ctx.createRadialGradient(128, 128, 30, 128, 128, 200);
+  g.addColorStop(0, '#5fbf93'); g.addColorStop(0.5, '#2e8b63'); g.addColorStop(1, '#0f4a35');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 256, 256);
+  ctx.filter = 'blur(2px)';
+  for (let i = 0; i < 10; i++) {
+    ctx.strokeStyle = 'rgba(210,240,225,' + (0.1 + Math.random() * 0.15) + ')';
+    ctx.lineWidth = 1 + Math.random() * 2;
+    ctx.beginPath();
+    const sy = Math.random() * 256, fr = 0.02 + Math.random() * 0.03, amp = 6 + Math.random() * 14, ph = Math.random() * 6.28;
+    for (let x = 0; x <= 256; x += 2) {
+      const y = sy + Math.sin(x * fr + ph) * amp;
+      if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+  ctx.filter = 'none';
+}
+
+// 启动时预生成 6 张纹理，应用时 clone 使用（clone 不共享 repeat/wrap 设置）
+const MAP_TEXTURES = {
+  marble:    toTexture(makeCanvas(drawMarble)),
+  matteGold: toTexture(makeCanvas(drawMatteGold)),
+  wood:      toTexture(makeCanvas(drawWood)),
+  enamel:    toTexture(makeCanvas(drawEnamel)),
+  sapphire:  toTexture(makeCanvas(drawSapphire)),
+  jade:      toTexture(makeCanvas(drawJade))
+};
+
+// 把纹理应用到选中对象所有 mesh（内置材质与导入图片共用）
+function applyTextureToSelected(tex, label, roughness, metalness) {
+  if (!selected) { showToast('请先选中模型'); return; }
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  if (tex.colorSpace !== undefined) tex.colorSpace = THREE.SRGBColorSpace;
+  tex.userData.isAiTexture = true;
+  tex.needsUpdate = true;
+  // 根据对象尺寸算 repeat，每 0.2 单位重复一次
+  const box = new THREE.Box3().setFromObject(selected);
+  const size = new THREE.Vector3();
+  box.getSize(size);
+  const maxDim = Math.max(size.x, size.y, size.z, 0.1);
+  const repeat = Math.max(1, Math.round(maxDim / 0.2));
+  tex.repeat.set(repeat, repeat);
+  // Set 去重材质：避免共享材质时重复 dispose 同一 map
+  const uniqueMats = new Set();
+  selected.traverse(c => {
+    if (!c.isMesh) return;
+    const mats = Array.isArray(c.material) ? c.material : [c.material];
+    mats.forEach(m => uniqueMats.add(m));
+  });
+  let count = 0;
+  uniqueMats.forEach(m => {
+    if (m.map && m.map.userData && m.map.userData.isAiTexture) m.map.dispose();
+    m.map = tex;
+    if (m.color) m.color = new THREE.Color(0xffffff);
+    if (m.roughness !== undefined && roughness !== undefined) m.roughness = roughness;
+    if (m.metalness !== undefined && metalness !== undefined) m.metalness = metalness;
+    m.needsUpdate = true;
+    count++;
+  });
+  recordHistory();
+  showToast('已应用「' + label + '」，可 ↶ 撤销');
+}
+
+function applyMaterialToSelected(style) {
+  if (!selected) { showToast('请先选中模型'); return; }
+  const cfg = MATERIAL_STYLES[style] || MATERIAL_STYLES.marble;
+  applyTextureToSelected((MAP_TEXTURES[style] || MAP_TEXTURES.marble).clone(), cfg.label, cfg.roughness, cfg.metalness);
+}
+
+function runAiRender() {
+  if (!selected) {
+    aiStatus.style.display = 'block';
+    aiStatus.textContent = '⚠ 请先在 3D 视图里点选一个对象';
+    return;
+  }
+  const style = aiStyle.value || 'marble';
+  applyMaterialToSelected(style);
+  // 弹窗里预览所选纹理
+  aiResult.src = MAP_TEXTURES[style].image.toDataURL();
+  aiResult.style.display = 'block';
+  aiStatus.style.display = 'block';
+  aiStatus.textContent = '✓ 已应用「' + MATERIAL_STYLES[style].label + '」';
+}
+document.getElementById('aiRun').addEventListener('click', runAiRender);
+
+// 导入本地图片作为材质图直接应用
+document.getElementById('btnImportTexture').addEventListener('click', () => {
+  document.getElementById('textureImport').click();
+});
+document.getElementById('textureImport').addEventListener('change', e => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  if (!selected) { showToast('请先选中模型'); e.target.value = ''; return; }
+  const fr = new FileReader();
+  fr.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const tex = new THREE.CanvasTexture(img);
+      applyTextureToSelected(tex, '导入材质', 0.5, 0.1);
+      aiResult.src = img.src;
+      aiResult.style.display = 'block';
+      aiStatus.style.display = 'block';
+      aiStatus.textContent = '✓ 已应用导入材质「' + file.name + '」';
+    };
+    img.onerror = () => { showToast('图片加载失败'); };
+    img.src = fr.result;
+  };
+  fr.readAsDataURL(file);
+  e.target.value = '';
+});
+
+// 键盘快捷键（桌面预览）：Ctrl+Z 撤销 / Ctrl+Y 重做 / Ctrl+D 复制 / Delete 删除
+// W/E/R 切换 移动/旋转/拉伸 模式
+window.addEventListener('keydown', e => {
+  const key = e.key.toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && key === 'z') {
+    e.preventDefault();
+    if (e.shiftKey) redo(); else undo();
+  } else if ((e.ctrlKey || e.metaKey) && key === 'y') {
+    e.preventDefault(); redo();
+  } else if ((e.ctrlKey || e.metaKey) && key === 'd') {
+    e.preventDefault(); duplicateSelected();
+  } else if (e.key === 'Delete' || e.key === 'Backspace') {
+    e.preventDefault();
+    document.getElementById('btnDelete').click();
+  } else if (!e.ctrlKey && !e.metaKey && (key === 'w' || key === 'e' || key === 'r')) {
+    const map = { w: 'translate', e: 'rotate', r: 'scale' };
+    setMode(map[key]);
+  }
+});
+
+// 变换模式切换
+function setMode(mode) {
+  tcontrol.setMode(mode);
+  document.querySelectorAll('.m-btn[data-mode]').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === mode);
+  });
+}
+document.getElementById('modeBar').addEventListener('click', e => {
+  const btn = e.target.closest('.m-btn');
+  if (!btn) return;
+  if (btn.id === 'btnMulti') {
+    multiMode = !multiMode;
+    btn.classList.toggle('on', multiMode);
+    if (multiMode) {
+      // 进入多选：解除单选与操纵杆
+      if (selected) { tcontrol.detach(); selected = null; }
+      renderLayers();
+    } else {
+      // 退出多选：清除高亮集合
+      [...multi].forEach(o => setHighlight(o, false));
+      multi.clear();
+      refreshOutline();
+      renderLayers();
+    }
+    return;
+  }
+  if (btn.id === 'btnTopView') { toggleTopView(); return; }
+  if (btn.id === 'btnSnap') { toggleSnapMode(); return; }
+  if (btn.dataset.mode) setMode(btn.dataset.mode);
+});
+
+document.getElementById('btnBack').addEventListener('click', () => showToast('返回'));
+// ··· 复位视角
+document.getElementById('btnMore').addEventListener('click', () => {
+  camera.position.set(0.8, 3.8, 5.6);
+  orbit.target.set(0, 0.1, 0);
+  orbit.update();
+  showToast('视角已复位');
+});
+document.getElementById('btnHelp').addEventListener('click', () => {
+  modalImg.style.display = 'none';
+  modalText.style.display = 'block';
+  modalText.innerHTML =
+    '<div class="modal-title">操作帮助（3D 版）</div>' +
+    '<div class="modal-desc">' +
+      '· 单指拖动空白：旋转 3D 视角<br>' +
+      '· 双指捏合：放大/缩小视角<br>' +
+      '· 轻点模型：选中；拖动红绿蓝手柄：移动模型<br>' +
+      '· 切到「拉伸」：拖单轴手柄拉伸，中间手柄整体缩放<br>' +
+      '· 「多选」模式：点选多个模型后可成组<br>' +
+      '· 点底部素材：添加到场景中央<br>' +
+      '· 图层页签：选中/隐藏/排序/删除模型<br>' +
+      '· ↶↷ 撤销/重做，⧉ 复制，··· 复位视角' +
+    '</div>';
+  modal.classList.add('show');
+});
+
+// 声音图标（装饰切换）
+let soundOn = true;
+document.getElementById('btnSound').addEventListener('click', function () {
+  soundOn = !soundOn;
+  this.textContent = soundOn ? '🔊' : '🔇';
+});
+
+// 分享：导出 PNG 后优先使用系统分享
+document.getElementById('btnShare').addEventListener('click', () => {
+  const blob = dataURLtoBlob(exportPNG());
+  const file = new File([blob], '我的饰品设计.png', { type: 'image/png' });
+  if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+    navigator.share({ files: [file], title: '我的饰品设计', text: '我的饰品 3D 白模设计' }).catch(() => {});
+  } else {
+    showToast('请使用「保存图片」导出后分享');
+  }
+});
+
+// Tab 切换
+document.getElementById('tabs').addEventListener('click', e => {
+  // 编辑模式下的 ⇡⇣ 按钮
+  const editBtn = e.target.closest('.tab-edit-btn');
+  if (editBtn) {
+    e.stopPropagation();
+    const tab = editBtn.parentElement;
+    const dir = editBtn.dataset.dir; // 'up' | 'down'
+    const tabs = document.getElementById('tabs');
+    const all = [...tabs.querySelectorAll('.tab')];
+    const i = all.indexOf(tab);
+    const j = dir === 'up' ? i - 1 : i + 1;
+    if (j < 0 || j >= all.length) return;
+    if (dir === 'up') tabs.insertBefore(tab, all[j]);
+    else tabs.insertBefore(tab, all[j].nextSibling);
+    persistTabOrder();
+    return;
+  }
+  // 编辑模式入口按钮
+  if (e.target.id === 'tabEditFab') {
+    document.getElementById('tabs').classList.toggle('tabs-edit-mode');
+    renderTabEditBtns();
+    return;
+  }
+  const t = e.target.closest('.tab');
+  if (!t) return;
+  currentTab = t.dataset.tab;
+  if (currentTab !== 'layers') currentCat = 0;
+  renderPanel();
+});
+
+// 分类
+catCol.addEventListener('click', e => {
+  const c = e.target.closest('.cat');
+  if (!c) return;
+  if (c.dataset.role === 'restore') { restoreHidden(); return; }
+  currentCat = parseInt(c.dataset.i, 10);
+  renderCats();
+  renderGrid();
+});
+
+// 素材卡片
+grid.addEventListener('click', e => {
+  const del = e.target.closest('.card-del');
+  if (del) { deleteElement(del.dataset.del); return; }
+  const card = e.target.closest('.card');
+  if (!card) return;
+  const cats = CATALOG[currentTab].categories;
+  for (const cat of cats) {
+    const item = cat.items.find(x => x.id === card.dataset.id);
+    if (item) { addItemObject(item); break; }
+  }
+});
+
+// 图层面板（事件委托）
+layerList.addEventListener('click', e => {
+  const tool = e.target.closest('.l-tool');
+  if (tool) {
+    if (tool.dataset.tool === 'group') groupSelected();
+    else ungroupSelected();
+    return;
+  }
+  const row = e.target.closest('.layer');
+  if (!row) return;
+  const obj = findObjectByLayerId(parseInt(row.dataset.id, 10));
+  if (!obj) return;
+  const btn = e.target.closest('.l-btn');
+  if (btn) {
+    const a = btn.dataset.act;
+    if (a === 'eye') toggleVisibility(obj);
+    else if (a === 'up') stackMove(obj, 'fwd');
+    else if (a === 'down') stackMove(obj, 'back');
+    else if (a === 'top') stackMove(obj, 'top');
+    else if (a === 'bottom') stackMove(obj, 'bottom');
+    else if (a === 'del') deleteObject(obj);
+    return;
+  }
+  // 点行选中（隐藏模型不可选）
+  if (obj.visible === false) return;
+  if (multiMode) {
+    if (multi.has(obj)) { multi.delete(obj); setHighlight(obj, false); }
+    else { multi.add(obj); setHighlight(obj, true); }
+    refreshOutline();
+    renderLayers();
+  } else {
+    selectSingle(obj);
+  }
+});
+
+function renderPanel() {
+  document.querySelectorAll('.tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.tab === currentTab);
+  });
+  const isLayers = currentTab === 'layers';
+  catCol.style.display = isLayers ? 'none' : '';
+  grid.style.display = isLayers ? 'none' : '';
+  layerList.style.display = isLayers ? 'flex' : 'none';
+  if (isLayers) renderLayers();
+  else { renderCats(); renderGrid(); }
+}
+
+// ---- Tab 自定义顺序 ----
+const TAB_ORDER_KEY = 'jewelry_diy_tab_order';
+// 启动时按 localStorage 重排 tab
+function bootTabOrder() {
+  try {
+    const order = JSON.parse(localStorage.getItem(TAB_ORDER_KEY) || '[]');
+    if (!Array.isArray(order) || !order.length) return;
+    const tabs = document.getElementById('tabs');
+    const fab = document.getElementById('tabEditFab');
+    // 按保存顺序重排
+    order.forEach(key => {
+      const t = tabs.querySelector('.tab[data-tab="' + key + '"]');
+      if (t) tabs.appendChild(t);
+    });
+    tabs.appendChild(fab); // 编辑按钮始终最后
+  } catch (e) {}
+}
+// 持久化当前顺序
+function persistTabOrder() {
+  const tabs = document.getElementById('tabs');
+  const order = [...tabs.querySelectorAll('.tab')].map(t => t.dataset.tab);
+  localStorage.setItem(TAB_ORDER_KEY, JSON.stringify(order));
+}
+// 进入编辑模式时给每个 tab 加 ⇡⇣ 按钮
+function renderTabEditBtns() {
+  const tabs = document.getElementById('tabs');
+  const all = [...tabs.querySelectorAll('.tab')];
+  all.forEach((t, i) => {
+    // 清旧
+    t.querySelectorAll('.tab-edit-btn').forEach(b => b.remove());
+    if (!tabs.classList.contains('tabs-edit-mode')) return;
+    if (i > 0) {
+      const b = document.createElement('button');
+      b.className = 'tab-edit-btn';
+      b.dataset.dir = 'up';
+      b.textContent = '⇡';
+      b.title = '上移';
+      t.appendChild(b);
+    }
+    if (i < all.length - 1) {
+      const b = document.createElement('button');
+      b.className = 'tab-edit-btn';
+      b.dataset.dir = 'down';
+      b.textContent = '⇣';
+      b.title = '下移';
+      t.appendChild(b);
+    }
+  });
+}
+
+/* =====================================================
+   初始化 3D（渲染器/场景就绪后再绑定 DOM 事件）
+===================================================== */
+function initThree() {
+  // ---- 渲染器 ----
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(viewEl.clientWidth, viewEl.clientHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  viewEl.appendChild(renderer.domElement);
+
+  // ---- 场景 / 相机 ----
+  scene = new THREE.Scene();
+  scene.environment = buildEnvironment(); // 反射环境（不影响背景）
+  camera = new THREE.PerspectiveCamera(
+    45,
+    viewEl.clientWidth / viewEl.clientHeight,
+    0.1, 100
+  );
+  camera.position.set(0.8, 3.8, 5.6);
+
+  // ---- 灯光（降低白色，避免过曝） ----
+  scene.add(new THREE.HemisphereLight(0x6a6256, 0x1a1812, 0.45));
+  const key = new THREE.DirectionalLight(0xf0dca8, 0.9);
+  key.position.set(4, 7, 5);
+  key.castShadow = true;
+  key.shadow.mapSize.set(2048, 2048);
+  key.shadow.camera.near = 0.5;
+  key.shadow.camera.far = 30;
+  key.shadow.camera.left = -8;
+  key.shadow.camera.right = 8;
+  key.shadow.camera.top = 8;
+  key.shadow.camera.bottom = -8;
+  key.shadow.bias = -0.0002;
+  scene.add(key);
+  const fill = new THREE.DirectionalLight(0x4a5470, 0.22);
+  fill.position.set(-5, 3, -4);
+  scene.add(fill);
+
+  // ---- 地面（半透明暗色，双面可见，便于俯视/仰视） ----
+  const ground = new THREE.Mesh(
+    new THREE.CircleGeometry(9, 64),
+    new THREE.MeshStandardMaterial({
+      color: 0x1a1a1e, roughness: 0.95, metalness: 0,
+      transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false
+    })
+  );
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = GROUND_Y;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  // ---- 设计对象根节点 ----
+  designRoot = new THREE.Group();
+  scene.add(designRoot);
+
+  // ---- 视角控制器（触屏：单指旋转、双指捏合缩放+平移） ----
+  orbit = new OrbitControls(camera, renderer.domElement);
+  orbit.enableDamping = true;
+  orbit.dampingFactor = 0.08;
+  orbit.enableRotate = true;     // 旋转
+  orbit.enableZoom = true;       // 缩放
+  orbit.enablePan = true;        // 平移
+  orbit.rotateSpeed = 1.2;       // 旋转更快
+  orbit.zoomSpeed = 1.4;        // 缩放更快
+  orbit.panSpeed = 1.0;         // 平移
+  orbit.enableDamping = true;
+  orbit.target.set(0, 0.1, 0);
+  orbit.minDistance = 1.2;       // 可贴近到 1.2
+  orbit.maxDistance = 40;        // 可拉远到 40
+  orbit.maxPolarAngle = Math.PI * 0.98; // 允许视角转到地面下方
+  orbit.minPolarAngle = 0;       // 允许完全顶视
+  orbit.update();
+
+  // ---- 模型变换控制器（移动/拉伸/旋转，触屏可直接拖手柄） ----
+  tcontrol = new TransformControls(camera, renderer.domElement);
+  tcontrol.setSize(1.08); // 触屏手柄稍大，便于点中
+  scene.add(tcontrol);
+  // 注意：本地 TransformControls 使用旧版事件：
+  //   mouseDown = 开始拖动手柄；mouseUp = 结束拖动
+  // 拖动模型手柄时禁用视角控制器，防止两者打架
+  tcontrol.addEventListener('mouseDown', () => {
+    transformDragging = true;
+    orbit.enabled = false;
+  });
+  tcontrol.addEventListener('mouseUp', () => {
+    transformDragging = false;
+    orbit.enabled = true;
+    // 碰撞回退已取消：允许模型相切/接触，不阻止移动
+    dragStartPos = null;
+    // 一次变换结束：刷新手围/图层并写入撤销历史
+    recalcStatus();
+    renderLayers();
+    recordHistory();
+  });
+  tcontrol.addEventListener('objectChange', () => recalcStatus());
+
+  // 多选包围盒挂入场景
+  scene.add(outline);
+
+  // ---- 指针点选（渲染器就绪后绑定） ----
+  bindPointer();
+
+  // ---- 尺寸自适应（含移动端旋转/地址栏收缩） ----
+  window.addEventListener('resize', resizeView);
+  window.addEventListener('orientationchange', () => setTimeout(resizeView, 200));
+
+  // ---- 渲染循环 ----
+  renderer.setAnimationLoop(() => {
+    orbit.update();
+    renderer.render(scene, camera);
+  });
+}
+
+function resizeView() {
+  const w = viewEl.clientWidth;
+  const h = viewEl.clientHeight;
+  if (w === 0 || h === 0) return;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+
+// ---- 启动 ----
+bootCustom();
+bootHidden();  // 过滤被删除的自带元素
+bootTabOrder(); // 应用自定义 tab 顺序
+initThree();
+renderPanel();
+loadDraft();
+</script>
+</body>
+</html>
