@@ -56,7 +56,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 12px 14px;
+    padding: 10px 14px;
     background: var(--bg);
   }
   .nav-title {
@@ -82,14 +82,14 @@
     flex: 0 0 auto;
     display: flex;
     gap: 8px;
-    padding: 0 14px 10px;
+    padding: 0 12px 8px;
     overflow-x: auto;
   }
   .pill {
     flex: 0 0 auto;
     background: var(--pill);
     border-radius: 999px;
-    padding: 7px 12px;
+    padding: 6px 10px;
     font-size: 12px;
     color: #b8b8c0;
     white-space: nowrap;
@@ -102,10 +102,10 @@
   /* ---------- 核心操作区：3D 视图 ---------- */
   .canvas-area {
     flex: 1 1 auto;
-    min-height: 240px;
+    min-height: 200px;
     position: relative;
     display: flex;
-    padding: 8px 16px;
+    padding: 6px 12px;
     background: linear-gradient(180deg, #16161a 0%, #0e0e12 100%);
   }
   /* 3D 视口容器（WebGL canvas 由脚本插入） */
@@ -122,10 +122,12 @@
   /* 视图内浮层：变换模式切换（移动 / 拉伸 / 旋转 / 多选） */
   .mode-bar {
     position: absolute;
-    top: 10px;
+    top: 8px;
     left: 50%;
     transform: translateX(-50%);
     display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
     gap: 2px;
     background: rgba(20,20,24,0.88);
     backdrop-filter: blur(10px);
@@ -138,9 +140,9 @@
   .m-btn {
     border: none;
     background: transparent;
-    font-size: 13px;
+    font-size: 12px;
     color: var(--muted);
-    padding: 6px 13px;
+    padding: 5px 10px;
     border-radius: 999px;
     cursor: pointer;
     white-space: nowrap;
@@ -236,7 +238,7 @@
     overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
-    padding: 10px 12px 4px;
+    padding: 8px 12px 2px;
     background: var(--bg);
   }
   .actions::-webkit-scrollbar { display: none; }
@@ -249,7 +251,7 @@
   }
   .act {
     flex: 0 0 auto;
-    height: 46px;
+    height: 42px;
     border-radius: 999px;
     border: 1px solid var(--line);
     background: var(--card);
@@ -262,23 +264,23 @@
     align-items: center;
     justify-content: center;
     gap: 4px;
-    padding: 0 14px;
+    padding: 0 13px;
   }
   .act:active { opacity: 0.7; }
   .act.trash {
-    flex: 0 0 46px;
+    flex: 0 0 42px;
     border-radius: 50%;
     background: var(--card);
     color: #e05555;
-    font-size: 18px;
+    font-size: 17px;
     padding: 0;
   }
   .act.circle {
-    flex: 0 0 46px;
+    flex: 0 0 42px;
     border-radius: 50%;
     background: var(--card);
     color: var(--text);
-    font-size: 18px;
+    font-size: 17px;
     padding: 0;
   }
   .act.primary {
@@ -289,8 +291,8 @@
   /* 拖拽条：长度反映按钮总宽 vs 视口宽，可拖动滚 actions */
   .actions-dragbar {
     flex: 0 0 auto;
-    height: 18px;
-    padding: 4px 12px 8px;
+    height: 14px;
+    padding: 3px 12px 6px;
     background: var(--bg);
     display: flex;
     align-items: center;
@@ -308,7 +310,7 @@
   /* ---------- 底部素材面板 Bottom Sheet ---------- */
   .sheet {
     flex: 0 0 auto;
-    height: 270px;
+    height: 250px;
     background: var(--card);
     border-radius: 22px 22px 0 0;
     box-shadow: 0 -6px 24px rgba(0,0,0,0.4);
@@ -317,7 +319,7 @@
     overflow: hidden;
   }
   .sheet-handle {
-    height: 26px;
+    height: 20px;
     flex: 0 0 auto;
     display: flex;
     align-items: center;
@@ -335,21 +337,23 @@
   .sheet-tabs {
     flex: 0 0 auto;
     display: flex;
-    padding: 2px 14px 10px;
-    gap: 8px;
+    padding: 2px 12px 8px;
+    gap: 6px;
     position: relative;
     align-items: center;
   }
   .tab {
     flex: 1;
-    height: 36px;
+    min-width: 0;
+    height: 34px;
     border-radius: 999px;
     border: none;
     background: var(--pill);
     color: #b8b8c0;
-    font-size: 14px;
+    font-size: 13px;
     cursor: pointer;
     position: relative;
+    padding: 0 2px;
   }
   .tab-edit-btn {
     position: absolute;
@@ -416,20 +420,20 @@
   }
   /* 左侧分类栏约 80px */
   .cat-col {
-    flex: 0 0 82px;
+    flex: 0 0 74px;
     overflow-y: auto;
-    padding: 0 8px 12px;
+    padding: 0 6px 12px;
     background: var(--bg);
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 5px;
   }
   .cat {
     border: none;
     background: transparent;
-    border-radius: 12px;
-    padding: 10px 6px;
-    font-size: 13px;
+    border-radius: 11px;
+    padding: 8px 5px;
+    font-size: 12px;
     color: var(--muted);
     cursor: pointer;
   }
@@ -441,15 +445,15 @@
     overflow-y: auto;
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    padding: 4px 12px 16px;
+    gap: 8px;
+    padding: 4px 10px 14px;
     touch-action: pan-y;
   }
   .card {
     position: relative;
     background: var(--card);
     border-radius: var(--radius);
-    padding: 10px;
+    padding: 8px;
     text-align: center;
     cursor: pointer;
     border: 1px solid transparent;
@@ -478,9 +482,9 @@
     padding: 0;
   }
   .card-del:active { background: #e05555; color: #fff; }
-  .preview { height: 52px; display: flex; align-items: center; justify-content: center; }
-  .preview svg { width: 48px; height: 48px; }
-  .c-name { font-size: 13px; font-weight: 600; margin-top: 6px; }
+  .preview { height: 44px; display: flex; align-items: center; justify-content: center; }
+  .preview svg { width: 42px; height: 42px; }
+  .c-name { font-size: 13px; font-weight: 600; margin-top: 4px; }
   .c-spec { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
   /* ---------- 图层面板 ---------- */
